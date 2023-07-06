@@ -1609,6 +1609,27 @@ def atan2_(*arg):
 	else :
 		raise ValueError( "Bad argumets for atan! (%s)" % arg)
 
+def draw_text(text, x, y, group=None, style=None, font_size=10, gcodetools_tag=None):
+    if style is None:
+        style = "font-family:DejaVu Sans;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:DejaVu Sans;fill:#000000;fill-opacity:1;stroke:none;"
+    style += "font-size:{:f}px;".format(font_size)
+    attributes = {'x': str(x), 'y': str(y), 'style': style}
+    if gcodetools_tag is not None:
+        attributes["gcodetools"] = str(gcodetools_tag)
+
+    if group is None:
+        group = options.doc_root
+
+    text_elem = group.add(TextElement(**attributes))
+    text_elem.set("xml:space", "preserve")
+    text = str(text).split("\n")
+    for string in text:
+        span = text_elem.add(Tspan(x=str(x), y=str(y)))
+        span.set('sodipodi:role', 'line')
+        y += font_size
+        span.text = str(string)
+
+
 def get_text(node) :
 	value = None
 	if node.text!=None : value = value +"\n" + node.text if value != None else node.text
@@ -1618,36 +1639,6 @@ def get_text(node) :
 	return value
 
 
-
-def draw_text(self, text,x,y, group = None, style = None, font_size = 10, gcodetools_tag = None, layer = None):
-	if layer != None :
-		x,y = gcodetools.transform([x,y], layer, True)
-	if style == None :
-		style = "font-family:DejaVu Sans;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:DejaVu Sans;fill:#000000;fill-opacity:1;stroke:none;"
-	style += "font-size:%f;"%(self.utouu(str(font_size)+"px"))
-	attributes = {			'x':	str(x),
-							inkex.addNS("space","xml"):"preserve",
-							'y':	str(y),
-							'style' : style
-						}
-	if gcodetools_tag!=None :
-		attributes["gcodetools"] = str(gcodetools_tag)
-
-	if group == None:
-		group = options.doc_root
-
-	t = inkex.etree.SubElement(	group, inkex.addNS('text','svg'), attributes)
-	text = str(text).split("\n")
-	for s in text :
-		span = inkex.etree.SubElement( t, inkex.addNS('tspan','svg'),
-						{
-							'x':	str(x),
-							'y':	str(y),
-							inkex.addNS("role","sodipodi"):"line",
-						})
-		y += font_size
-		span.text = str(s)
-	return t
 
 def draw_csp(csp, stroke = "#f00", fill = "none", comment = "", width = 0.354, group = None, style = None, gcodetools_tag = None) :
 	if style == None :
@@ -1664,61 +1655,35 @@ def draw_csp(csp, stroke = "#f00", fill = "none", comment = "", width = 0.354, g
 
 	return inkex.etree.SubElement( group, inkex.addNS('path','svg'), attributes)
 
-def draw_pointer(x1, color = "#f00", figure = "cross", group = None, comment = "", fill="none", width = .1, size = 2., text = None, font_size=None, pointer_type=None, style= None, attrib = None, gcodetools_tag = None, layer=None) :
-	layer, group, transform, reverse_angle = gcodetools.get_preview_group(layer, group, None)
-	if x1.__class__ == P : x1 =[x1]
-	x = []
-	for i in x1 :
+def draw_pointer(x, color="#f00", figure="cross", group=None, comment="", fill=None, width=.1, size=10., text=None, font_size=None, pointer_type=None, attrib=None):
+    size = size / 2
+    if attrib is None:
+        attrib = {}
+    if pointer_type is None:
+        pointer_type = "Pointer"
+    attrib["gcodetools"] = pointer_type
+    if group is None:
+        group = options.self.svg.get_current_layer()
+    if text is not None:
+        if font_size is None:
+            font_size = 7
+        group = group.add(Group(gcodetools=pointer_type + " group"))
+        draw_text(text, x[0] + size * 2.2, x[1] - size, group=group, font_size=font_size)
+    if figure == "line":
+        s = ""
+        for i in range(1, len(x) / 2):
+            s += " {}, {} ".format(x[i * 2], x[i * 2 + 1])
+        attrib.update({"d": "M {},{} L {}".format(x[0], x[1], s), "style": "fill:none;stroke:{};stroke-width:{:f};".format(color, width), "comment": str(comment)})
+    elif figure == "arrow":
+        if fill is None:
+            fill = "#12b3ff"
+        fill_opacity = "0.8"
+        d = "m {},{} ".format(x[0], x[1]) + re.sub("([0-9\\-.e]+)", (lambda match: str(float(match.group(1)) * size * 2.)), "0.88464,-0.40404 c -0.0987,-0.0162 -0.186549,-0.0589 -0.26147,-0.1173 l 0.357342,-0.35625 c 0.04631,-0.039 0.0031,-0.13174 -0.05665,-0.12164 -0.0029,-1.4e-4 -0.0058,-1.4e-4 -0.0087,0 l -2.2e-5,2e-5 c -0.01189,0.004 -0.02257,0.0119 -0.0305,0.0217 l -0.357342,0.35625 c -0.05818,-0.0743 -0.102813,-0.16338 -0.117662,-0.26067 l -0.409636,0.88193 z")
+        attrib.update({"d": d, "style": "fill:{};stroke:none;fill-opacity:{};".format(fill, fill_opacity), "comment": str(comment)})
+    else:
+        attrib.update({"d": "m {},{} l {:f},{:f} {:f},{:f} {:f},{:f} {:f},{:f} , {:f},{:f}".format(x[0], x[1], size, size, -2 * size, -2 * size, size, size, size, -size, -2 * size, 2 * size), "style": "fill:none;stroke:{};stroke-width:{:f};".format(color, width), "comment": str(comment)})
+    group.add(PathElement(**attrib))
 
-		if i.__class__ == P :
-			x += [i.x,i.y]
-		else :
-			x += [i]
-
-	if group == None and layer == None :
-		layer=gcodetools.layers[-1]
-
-	if layer != None :
-		x1 = x[:]
-		x = []
-		for x1,y1 in zip(x1[::2], x1[1::2]):
-			x1,y1 = gcodetools.transform([x1,y1], layer, True)
-			x += [x1,y1]
-	size = size/2
-	if attrib == None : attrib = {}
-	if pointer_type == None:
-		pointer_type = "Pointer"
-	attrib["gcodetools"] = pointer_type
-	if gcodetools_tag != None :
-		attrib["gcodetools"] = gcodetools_tag
-	if group == None:
-		group = options.self.current_layer
-	if text != None	:
-		if font_size == None : font_size = 7
-		group = inkex.etree.SubElement( group, inkex.addNS('g','svg'), {"gcodetools": pointer_type+" group"} )
-		self.draw_text(text,x[0]+size*2.2,x[1]-size, group = group, font_size = font_size)
-	if figure  == "line" :
-		s = ""
-		for i in range(1,len(x)/2) :
-			s+= " %s, %s " %(x[i*2],x[i*2+1])
-		if style ==	None :
-			style = "fill:none;stroke:%s;stroke-width:%f;"%(color,width)
-		attrib.update({"d": "M %s,%s L %s"%(x[0],x[1],s), "style":style,"comment":str(comment)})
-		inkex.etree.SubElement( group, inkex.addNS('path','svg'), attrib)
-	elif figure == "arrow" :
-		if fill == None : fill = "#12b3ff"
-		fill_opacity = "0.8"
-		d = "m %s,%s " % (x[0],x[1]) + re.sub("([0-9\-.e]+)",(lambda match: str(float(match.group(1))*size*2.)), "0.88464,-0.40404 c -0.0987,-0.0162 -0.186549,-0.0589 -0.26147,-0.1173 l 0.357342,-0.35625 c 0.04631,-0.039 0.0031,-0.13174 -0.05665,-0.12164 -0.0029,-1.4e-4 -0.0058,-1.4e-4 -0.0087,0 l -2.2e-5,2e-5 c -0.01189,0.004 -0.02257,0.0119 -0.0305,0.0217 l -0.357342,0.35625 c -0.05818,-0.0743 -0.102813,-0.16338 -0.117662,-0.26067 l -0.409636,0.88193 z")
-		if style ==	None :
-			style = "fill:%s;stroke:none;fill-opacity:%s;"%(fill,fill_opacity)
-		attrib.update({"d": d, "style":style,"comment":str(comment)})
-		inkex.etree.SubElement( group, inkex.addNS('path','svg'), attrib)
-	else :
-		#gcodetools.error(x, "warning")
-		if style ==	None :
-			style = "fill:none;stroke:%s;stroke-width:%f;"%(color,width)
-		attrib.update({"d": "m %s,%s l %f,%f %f,%f %f,%f %f,%f , %f,%f"%(x[0],x[1], size,size, -2*size,-2*size, size,size, size,-size, -2*size,2*size ), "style":style,"comment":str(comment)})
-		inkex.etree.SubElement( group, inkex.addNS('path','svg'), attrib)
 
 
 def straight_segments_intersection(a,b, true_intersection = True) : # (True intersection means check ta and tb are in [0,1])
@@ -1970,7 +1935,7 @@ class CSP() :
 
 		if text!="" :
 			st = csp.items[0].points[0][1]
-			self.draw_text(text, st.x+10,st.y , group = group)
+			draw_text(text, st.x+10,st.y , group = group)
 		attr = {
 				"style":	style,
 				"d": 		cubicsuperpath.formatPath(csp.to_list()),
@@ -4120,7 +4085,7 @@ class Gcodetools(inkex.Effect):
 				x,y = 400* (champions_count%10), 700*int(champions_count/10)
 				surface.move(x-b[0],y-b[1])
 				surface.draw(width=2, color=colors[0])
-				self.draw_text("Step = %s\nSquare = %f\nSquare improvement = %f\nTime from start = %f"%(i,(b[2]-b[0])*(b[3]-b[1]),improve,time.time()-start_time),x,y-50)
+				draw_text("Step = %s\nSquare = %f\nSquare improvement = %f\nTime from start = %f"%(i,(b[2]-b[0])*(b[3]-b[1]),improve,time.time()-start_time),x,y-50)
 				champions_count += 1
 				"""
 				spiece = population.population[0][1]
@@ -4796,6 +4761,8 @@ class Gcodetools(inkex.Effect):
 				if self.layers[i] in self.orientation_points :
 					break
 			if self.layers[i] not in self.orientation_points :
+				self.get_info()
+				raise ValueError(self.orientation_points)
 				self.error(_("Orientation points for '%s' layer have not been found! Please add orientation points using Orientation tab!") % layer.get(inkex.addNS('label','inkscape')),"no_orientation_points")
 			elif self.layers[i] in self.transform_matrix :
 				self.transform_matrix[layer] = self.transform_matrix[self.layers[i]]
@@ -5000,6 +4967,7 @@ class Gcodetools(inkex.Effect):
 			items = g.getchildren()
 			items.reverse()
 			for i in items:
+				self.error(_(i.get('gcodetools')) )
 				gct = i.get('gcodetools')
 				if gct!=None and gct.lower()=="ignore" :
 					continue
@@ -5652,10 +5620,10 @@ class Gcodetools(inkex.Effect):
 						if key not in keys: keys += [key]
 					for key in keys :
 						g = inkex.etree.SubElement(tools_group, inkex.addNS('g','svg'), {'gcodetools': "Gcodetools tool parameter"})
-						self.draw_text(key, 0, y, group = g, gcodetools_tag = "Gcodetools tool definition field name", font_size = 10 if key!='name' else 20)
+						draw_text(key, 0, y, group = g, gcodetools_tag = "Gcodetools tool definition field name", font_size = 10 if key!='name' else 20)
 						param = tool[key]
 						if type(param)==str and re.match("^\s*$",param) : param = "(None)"
-						self.draw_text(param, 150, y, group = g, gcodetools_tag = "Gcodetools tool definition field value", font_size = 10 if key!='name' else 20)
+						draw_text(param, 150, y, group = g, gcodetools_tag = "Gcodetools tool definition field value", font_size = 10 if key!='name' else 20)
 						v = str(param).split("\n")
 						y += 15*len(v) if key!='name' else 20*len(v)
 
@@ -6945,10 +6913,10 @@ class Gcodetools(inkex.Effect):
 					'gcodetools': "Gcodetools graffiti reference point arrow"
 				})
 
-			self.draw_text(axis,graffiti_reference_points_count*100+10,-10, group = g, gcodetools_tag = "Gcodetools graffiti reference point text")
+			draw_text(axis,graffiti_reference_points_count*100+10,-10, group = g, gcodetools_tag = "Gcodetools graffiti reference point text")
 
 		elif self.options.orientation_points_count == "in-out reference point" :
-			draw_pointer(self.view_center, group = self.current_layer, figure="arrow", size=10, fill="#0072a7", pointer_type = "In-out reference point", text = "In-out point")
+			draw_pointer(self.view_center, group = self.svg.get_current_layer(), figure="arrow", size=10, fill="#0072a7", pointer_type = "In-out reference point", text = "In-out point")
 
 		else :
 			print_("Inserting orientation points")
@@ -6992,8 +6960,10 @@ class Gcodetools(inkex.Effect):
 
 			arrow = [2.9375, -6.3438, 0.8125, 1.9063, 6.8437, -6.8437, 0.0, 0.0, 0.6875, 0.6875, -6.8438, 6.8438, 1.9063, 0.8125]
 			arrow = map(lambda x: str(x) + "px", arrow)
-			arrow = self.utouu(arrow)
-			arrow = ' '.join(map(str, arrow)) + ' z z'
+			# arrow = self.utouu(arrow)
+			# raise ValueError(arrow)
+			# string_arrow_points = map(str, arrow)
+			arrow = ' '.join(arrow) + ' z z'
 			for i in points :
 				si = [self.utouu(str(i[0])+base_unit) + self.utouu(self.options.op_x_offset),
 				      self.utouu(str(i[1])+base_unit) + self.utouu(self.options.op_y_offset)]
@@ -7007,7 +6977,7 @@ class Gcodetools(inkex.Effect):
 						'gcodetools': "Gcodetools orientation point arrow"
 					})
 
-				self.draw_text("(%s; %s; %s)" % (i[0],i[1],i[2]), (si[0]+self.utouu("9.5px")), (-si[1]-self.utouu("10px")+doc_height), group = g, gcodetools_tag = "Gcodetools orientation point text")
+				draw_text("(%s; %s; %s)" % (i[0],i[1],i[2]), (si[0]+self.utouu("9.5px")), (-si[1]-self.utouu("10px")+doc_height), group = g, gcodetools_tag = "Gcodetools orientation point text")
 
 
 ################################################################################
@@ -7121,10 +7091,10 @@ G01 Z1 (going to cutting z)\n""",
 			if key not in keys: keys += [key]
 		for key in keys :
 			g = inkex.etree.SubElement(tools_group, inkex.addNS('g','svg'), {'gcodetools': "Gcodetools tool parameter"})
-			self.draw_text(key, 0, y, group = g, gcodetools_tag = "Gcodetools tool definition field name", font_size = 10 if key!='name' else 20)
+			draw_text(key, 0, y, group = g, gcodetools_tag = "Gcodetools tool definition field name", font_size = 10 if key!='name' else 20)
 			param = tool[key]
 			if type(param)==str and re.match("^\s*$",param) : param = "(None)"
-			self.draw_text(param, 150, y, group = g, gcodetools_tag = "Gcodetools tool definition field value", font_size = 10 if key!='name' else 20)
+			draw_text(param, 150, y, group = g, gcodetools_tag = "Gcodetools tool definition field value", font_size = 10 if key!='name' else 20)
 			v = str(param).split("\n")
 			y += 15*len(v) if key!='name' else 20*len(v)
 

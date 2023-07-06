@@ -8,7 +8,6 @@
     <id>ru.cnc-club.filter.gcodetools_dev</id>
     <!-- Gcodetools: /id -->
 	<dependency type="executable" location="extensions">gcodetools-dev.py</dependency>
-	<dependency type="executable" location="extensions">inkex.py</dependency>
 	<param name='active-tab' type="notebook">
 <!-- Gcodetools: /header block -->
 <!-- Gcodetools: help block -->
