@@ -4967,7 +4967,6 @@ class Gcodetools(inkex.Effect):
 			items = g.getchildren()
 			items.reverse()
 			for i in items:
-				self.error(_(i.get('gcodetools')) )
 				gct = i.get('gcodetools')
 				if gct!=None and gct.lower()=="ignore" :
 					continue
@@ -6931,10 +6930,11 @@ class Gcodetools(inkex.Effect):
 			orientation_group = inkex.etree.SubElement(layer, inkex.addNS('g','svg'), attr)
 			if self.document.getroot().get('height') == "100%" :
 				doc_height = 1052.3622047
+				error(_("Document height is 100%, overruding to 1052.3622047"))
 				print_("Overruding height from 100 percents to %s" % doc_height)
 			else:
 				try :
-					doc_height = inkex.unittouu(self.document.getroot().get('height'))
+					doc_height = self.svg.unittouu(self.document.getroot().get('height'))
 				except :
 					doc_height = self.unittouu(self.document.getroot().get('height'))
 
@@ -6959,7 +6959,8 @@ class Gcodetools(inkex.Effect):
 				points = points[:2]
 
 			arrow = [2.9375, -6.3438, 0.8125, 1.9063, 6.8437, -6.8437, 0.0, 0.0, 0.6875, 0.6875, -6.8438, 6.8438, 1.9063, 0.8125]
-			arrow = map(lambda x: str(x) + "px", arrow)
+			arrow = map(lambda x: str(x) , arrow)
+			# arrow = map(lambda x: str(x) + "px", arrow)
 			# arrow = self.utouu(arrow)
 			# raise ValueError(arrow)
 			# string_arrow_points = map(str, arrow)
