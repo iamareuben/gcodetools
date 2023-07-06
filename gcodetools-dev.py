@@ -68,7 +68,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 ###
 gcodetools_current_version = "1.7"
 
-import inkex, simplestyle, simplepath
+import simplestyle, simplepath
+from inkex import Transform, PathElement, TextElement, Tspan, Group, Layer, Marker, CubicSuperPath, Style
+import inkex
+
 import cubicsuperpath, simpletransform, bezmisc
 from simplepath import formatPath
 
@@ -91,6 +94,10 @@ from biarc import *
 from points import P
 import ast
 
+from lxml import etree
+
+inkex.etree = etree
+
 ### Check if inkex has errormsg (0.46 version does not have one.) Could be removed later.
 if "errormsg" not in dir(inkex):
 	inkex.errormsg = lambda msg: sys.stderr.write((unicode(msg) + "\n").encode("UTF-8"))
@@ -101,23 +108,23 @@ def generate_gcodetools_point(xc, yc,layer):
     attribs = {'d': path, inkex.addNS('dxfpoint','inkscape'):'1', 'style': 'stroke:#ff0000;fill:#ff0000'}
     inkex.etree.SubElement(layer, 'path', attribs)
 
-def bezierslopeatt(((bx0,by0),(bx1,by1),(bx2,by2),(bx3,by3)),t):
-	ax,ay,bx,by,cx,cy,x0,y0=bezmisc.bezierparameterize(((bx0,by0),(bx1,by1),(bx2,by2),(bx3,by3)))
-	dx=3*ax*(t**2)+2*bx*t+cx
-	dy=3*ay*(t**2)+2*by*t+cy
-	if dx==dy==0 :
-		dx = 6*ax*t+2*bx
-		dy = 6*ay*t+2*by
-		if dx==dy==0 :
-			dx = 6*ax
-			dy = 6*ay
-			if dx==dy==0 :
-				print_("Slope error x = %s*t^3+%s*t^2+%s*t+%s, y = %s*t^3+%s*t^2+%s*t+%s,  t = %s, dx==dy==0" % (ax,bx,cx,dx,ay,by,cy,dy,t))
-				print_(((bx0,by0),(bx1,by1),(bx2,by2),(bx3,by3)))
-				dx, dy = 1, 1
+# def bezierslopeatt(((bx0,by0),(bx1,by1),(bx2,by2),(bx3,by3)),t):
+# 	ax,ay,bx,by,cx,cy,x0,y0=bezmisc.bezierparameterize(((bx0,by0),(bx1,by1),(bx2,by2),(bx3,by3)))
+# 	dx=3*ax*(t**2)+2*bx*t+cx
+# 	dy=3*ay*(t**2)+2*by*t+cy
+# 	if dx==dy==0 :
+# 		dx = 6*ax*t+2*bx
+# 		dy = 6*ay*t+2*by
+# 		if dx==dy==0 :
+# 			dx = 6*ax
+# 			dy = 6*ay
+# 			if dx==dy==0 :
+# 				print_("Slope error x = %s*t^3+%s*t^2+%s*t+%s, y = %s*t^3+%s*t^2+%s*t+%s,  t = %s, dx==dy==0" % (ax,bx,cx,dx,ay,by,cy,dy,t))
+# 				print_(((bx0,by0),(bx1,by1),(bx2,by2),(bx3,by3)))
+# 				dx, dy = 1, 1
 
-	return dx,dy
-bezmisc.bezierslopeatt = bezierslopeatt
+# 	return dx,dy
+# bezmisc.bezierslopeatt = bezierslopeatt
 
 
 def ireplace(self,old,new,count=0):
@@ -246,75 +253,79 @@ M2
 intersection_recursion_depth = 10
 intersection_tolerance = 0.00001
 
+def marker_style(stroke, marker='DrawCurveMarker', width=1):
+    """Set a marker style with some basic defaults"""
+    return Style(stroke=stroke, fill='none', stroke_width=width,
+                 marker_end='url(#{})'.format(marker))
+
+
 styles = {
-		"in_out_path_style" : simplestyle.formatStyle({ 'stroke': '#0072a7', 'fill': 'none', 'stroke-width':'1', 'marker-mid':'url(#InOutPathMarker)' }),
-
-		"loft_style" : {
-				'main curve':	simplestyle.formatStyle({ 'stroke': '#88f', 'fill': 'none', 'stroke-width':'1', 'marker-end':'url(#Arrow2Mend)' }),
-			},
-		"biarc_style" : {
-				'biarc0':	simplestyle.formatStyle({ 'stroke': '#88f', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'1' }),
-				'biarc1':	simplestyle.formatStyle({ 'stroke': '#8f8', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'1' }),
-				'line':		simplestyle.formatStyle({ 'stroke': '#f88', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'1' }),
-				'area':		simplestyle.formatStyle({ 'stroke': '#777', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'0.1' }),
-			},
-		"biarc_style_dark" : {
-				'biarc0':	simplestyle.formatStyle({ 'stroke': '#33a', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'1' }),
-				'biarc1':	simplestyle.formatStyle({ 'stroke': '#3a3', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'1' }),
-				'line':		simplestyle.formatStyle({ 'stroke': '#a33', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'1' }),
-				'area':		simplestyle.formatStyle({ 'stroke': '#222', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'0.3' }),
-			},
-		"biarc_style_dark_area" : {
-				'biarc0':	simplestyle.formatStyle({ 'stroke': '#33a', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'0.1' }),
-				'biarc1':	simplestyle.formatStyle({ 'stroke': '#3a3', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'0.1' }),
-				'line':		simplestyle.formatStyle({ 'stroke': '#a33', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'0.1' }),
-				'area':		simplestyle.formatStyle({ 'stroke': '#222', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'0.3' }),
-			},
-		"biarc_style_i"  : {
-				'biarc0':	simplestyle.formatStyle({ 'stroke': '#880', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'1' }),
-				'biarc1':	simplestyle.formatStyle({ 'stroke': '#808', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'1' }),
-				'line':		simplestyle.formatStyle({ 'stroke': '#088', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'1' }),
-				'area':		simplestyle.formatStyle({ 'stroke': '#999', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'0.3' }),
-			},
-		"biarc_style_dark_i" : {
-				'biarc0':	simplestyle.formatStyle({ 'stroke': '#dd5', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'1' }),
-				'biarc1':	simplestyle.formatStyle({ 'stroke': '#d5d', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'1' }),
-				'line':		simplestyle.formatStyle({ 'stroke': '#5dd', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'1' }),
-				'area':		simplestyle.formatStyle({ 'stroke': '#aaa', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'0.3' }),
-			},
-		"biarc_style_lathe_feed" : {
-				'biarc0':	simplestyle.formatStyle({ 'stroke': '#07f', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'.4' }),
-				'biarc1':	simplestyle.formatStyle({ 'stroke': '#0f7', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'.4' }),
-				'line':		simplestyle.formatStyle({ 'stroke': '#f44', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'.4' }),
-				'area':		simplestyle.formatStyle({ 'stroke': '#aaa', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'0.3' }),
-			},
-		"biarc_style_lathe_passing feed" : {
-				'biarc0':	simplestyle.formatStyle({ 'stroke': '#07f', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'.4' }),
-				'biarc1':	simplestyle.formatStyle({ 'stroke': '#0f7', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'.4' }),
-				'line':		simplestyle.formatStyle({ 'stroke': '#f44', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'.4' }),
-				'area':		simplestyle.formatStyle({ 'stroke': '#aaa', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'0.3' }),
-			},
-		"biarc_style_lathe_fine feed" : {
-				'biarc0':	simplestyle.formatStyle({ 'stroke': '#7f0', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'.4' }),
-				'biarc1':	simplestyle.formatStyle({ 'stroke': '#f70', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'.4' }),
-				'line':		simplestyle.formatStyle({ 'stroke': '#744', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'.4' }),
-				'area':		simplestyle.formatStyle({ 'stroke': '#aaa', 'fill': 'none', "marker-end":"url(#DrawCurveMarker)", 'stroke-width':'0.3' }),
-			},
-		"area artefact": 		simplestyle.formatStyle({ 'stroke': '#ff0000', 'fill': '#ffff00', 'stroke-width':'1' }),
-		"area artefact arrow":	simplestyle.formatStyle({ 'stroke': '#ff0000', 'fill': '#ffff00', 'stroke-width':'1' }),
-		"dxf_points":		 	simplestyle.formatStyle({ "stroke": "#ff0000", "fill": "#ff0000"}),
-		"dxf_points_save":		 	simplestyle.formatStyle({ "stroke": "#ff0000", "fill": "none"}),
-
+		"in_out_path_style": marker_style('#0072a7', 'InOutPathMarker'),
+		"loft_style": {
+			'main curve': marker_style('#88f', 'Arrow2Mend'),
+		},
+		"biarc_style": {
+			'biarc0': marker_style('#88f'),
+			'biarc1': marker_style('#8f8'),
+			'line': marker_style('#f88'),
+			'area': marker_style('#777', width=0.1),
+		},
+		"biarc_style_dark": {
+			'biarc0': marker_style('#33a'),
+			'biarc1': marker_style('#3a3'),
+			'line': marker_style('#a33'),
+			'area': marker_style('#222', width=0.3),
+		},
+		"biarc_style_dark_area": {
+			'biarc0': marker_style('#33a', width=0.1),
+			'biarc1': marker_style('#3a3', width=0.1),
+			'line': marker_style('#a33', width=0.1),
+			'area': marker_style('#222', width=0.3),
+		},
+		"biarc_style_i": {
+			'biarc0': marker_style('#880'),
+			'biarc1': marker_style('#808'),
+			'line': marker_style('#088'),
+			'area': marker_style('#999', width=0.3),
+		},
+		"biarc_style_dark_i": {
+			'biarc0': marker_style('#dd5'),
+			'biarc1': marker_style('#d5d'),
+			'line': marker_style('#5dd'),
+			'area': marker_style('#aaa', width=0.3),
+		},
+		"biarc_style_lathe_feed": {
+			'biarc0': marker_style('#07f', width=0.4),
+			'biarc1': marker_style('#0f7', width=0.4),
+			'line': marker_style('#f44', width=0.4),
+			'area': marker_style('#aaa', width=0.3),
+		},
+		"biarc_style_lathe_passing feed": {
+			'biarc0': marker_style('#07f', width=0.4),
+			'biarc1': marker_style('#0f7', width=0.4),
+			'line': marker_style('#f44', width=0.4),
+			'area': marker_style('#aaa', width=0.3),
+		},
+		"biarc_style_lathe_fine feed": {
+			'biarc0': marker_style('#7f0', width=0.4),
+			'biarc1': marker_style('#f70', width=0.4),
+			'line': marker_style('#744', width=0.4),
+			'area': marker_style('#aaa', width=0.3),
+		},
+		"area artefact": Style(stroke='#ff0000', fill='#ffff00', stroke_width=1),
+		"area artefact arrow": Style(stroke='#ff0000', fill='#ffff00', stroke_width=1),
+		"dxf_points": Style(stroke="#ff0000", fill="#ff0000"),
 	}
 
-for style in styles :
-	s = styles[style]
-	for i in ['biarc0','biarc1'] :
-		if i in s :
-			si = simplestyle.parseStyle(s[i])
-			si["marker-start"] = "url(#DrawCurveMarker_r)"
-			del( si["marker-end"] )
-			styles[style][i[:-1]+"_r"+i[-1]] = simplestyle.formatStyle(si)
+
+# for style in styles :
+# 	s = styles[style]
+# 	for i in ['biarc0','biarc1'] :
+# 		if i in s :
+# 			si = simplestyle.parseStyle(s[i])
+# 			si["marker-start"] = "url(#DrawCurveMarker_r)"
+# 			del( si["marker-end"] )
+# 			styles[style][i[:-1]+"_r"+i[-1]] = simplestyle.formatStyle(si)
 
 def get_style(stype, reverse=None, i=None, name=None, color = None, width = None) :
 	if stype == 'biarc' and i==None : i=0
@@ -903,7 +914,7 @@ def csplength(csp):
 	total = 0
 	lengths = []
 	for sp in csp:
-		for i in xrange(1,len(sp)):
+		for i in range(1,len(sp)):
 			l = cspseglength(sp[i-1],sp[i])
 			lengths.append(l)
 			total += l
@@ -913,12 +924,12 @@ def csplength(csp):
 def csp_segments(csp):
 	l, seg = 0, [0]
 	for sp in csp:
-		for i in xrange(1,len(sp)):
+		for i in range(1,len(sp)):
 			l += cspseglength(sp[i-1],sp[i])
 			seg += [ l ]
 
 	if l>0 :
-		seg = [seg[i]/l for i in xrange(len(seg))]
+		seg = [seg[i]/l for i in range(len(seg))]
 	return seg,l
 
 
@@ -929,13 +940,13 @@ def rebuild_csp (csp, segs, s=None):
 	if len(s)>len(segs) : return None
 	segs = segs[:]
 	segs.sort()
-	for i in xrange(len(s)):
+	for i in range(len(s)):
 		d = None
-		for j in xrange(len(segs)):
+		for j in range(len(segs)):
 			d = min( [abs(s[i]-segs[j]),j], d) if d!=None else [abs(s[i]-segs[j]),j]
 		del segs[d[1]]
-	for i in xrange(len(segs)):
-		for j in xrange(0,len(s)):
+	for i in range(len(segs)):
+		for j in range(0,len(s)):
 			if segs[i]<s[j] : break
 		if s[j]-s[j-1] != 0 :
 			t = (segs[i] - s[j-1])/(s[j]-s[j-1])
@@ -1441,7 +1452,7 @@ def csp_segment_convex_hull(sp1,sp2):
 	if not (m1 and m2) and m3 : return [c,a,d]
 	if not (m1 and m3) and m2 : return [b,c,d]
 
-	raise ValueError, "csp_segment_convex_hull happend something that shouldnot happen!"
+	raise ValueError("csp_segment_convex_hull happend something that shouldnot happen!")
 
 
 ################################################################################
@@ -1465,8 +1476,11 @@ def bounds_intersect(a, b) :
 	return not ( (a[0]>b[2]) or (b[0]>a[2]) or (a[1]>b[3]) or (b[1]>a[3]) )
 
 
-def tpoint((x1,y1),(x2,y2),t):
-	return [x1+t*(x2-x1),y1+t*(y2-y1)]
+def tpoint(xy1, xy2, t):
+    (x1, y1) = xy1
+    (x2, y2) = xy2
+    return [x1 + t * (x2 - x1), y1 + t * (y2 - y1)]
+
 
 
 def bez_to_csp_segment(bez) :
@@ -1499,10 +1513,14 @@ def bez_normalized_slope(bez,t):
 ###	Some vector functions
 ################################################################################
 
-def normalize((x,y)) :
-	l = sqrt(x**2+y**2)
-	if l == 0 : return [0.,0.]
-	else : 		return [x/l, y/l]
+def normalize(xy):
+    (x, y) = xy
+    l = math.sqrt(x ** 2 + y ** 2)
+    if l == 0:
+        return [0., 0.]
+    else:
+        return [x / l, y / l]
+
 
 
 def cross(a,b) :
@@ -1589,7 +1607,7 @@ def atan2_(*arg):
 	elif len(arg)==2 :
 		return (pi/2 - atan2(arg[0],arg[1]) ) % pi2
 	else :
-		raise ValueError, "Bad argumets for atan! (%s)" % arg
+		raise ValueError( "Bad argumets for atan! (%s)" % arg)
 
 def get_text(node) :
 	value = None
@@ -2361,15 +2379,15 @@ def csp_offset(csp, r) :
 	############################################################################
 	# Remove all small segments (segment length < 0.001)
 
-	for i in xrange(len(csp)) :
-		for j in xrange(len(csp[i])) :
+	for i in range(len(csp)) :
+		for j in range(len(csp[i])) :
 			sp = csp[i][j]
 			if (P(sp[1])-P(sp[0])).mag() < 0.001 :
 				csp[i][j][0] = sp[1]
 			if (P(sp[2])-P(sp[0])).mag() < 0.001 :
 				csp[i][j][2] = sp[1]
-	for i in xrange(len(csp)) :
-		for j in xrange(1,len(csp[i])) :
+	for i in range(len(csp)) :
+		for j in range(1,len(csp[i])) :
 			if cspseglength(csp[i][j-1], csp[i][j])<0.001 :
 				csp[i] = csp[i][:j] + csp[i][j+1:]
 		if cspseglength(csp[i][-1],csp[i][0])>0.001 :
@@ -2389,11 +2407,11 @@ def csp_offset(csp, r) :
 	# Offset
 	############################################################################
 	# Create offsets for all segments in the path. And join them together inside each subpath.
-	unclipped_offset = [[] for i in xrange(csp_len)]
-	offsets_original = [[] for i in xrange(csp_len)]
-	join_points = [[] for i in xrange(csp_len)]
-	intersection = [[] for i in xrange(csp_len)]
-	for i in xrange(csp_len) :
+	unclipped_offset = [[] for i in range(csp_len)]
+	offsets_original = [[] for i in range(csp_len)]
+	join_points = [[] for i in range(csp_len)]
+	intersection = [[] for i in range(csp_len)]
+	for i in range(csp_len) :
 		subpath = csp[i]
 		subpath_offset = []
 		last_offset_len = 0
@@ -2443,14 +2461,14 @@ def csp_offset(csp, r) :
 	small_tolerance = 0.01
 	summ = 0
 	summ1 = 0
-	for subpath_i in xrange(csp_len) :
-		for subpath_j in xrange(subpath_i,csp_len) :
+	for subpath_i in range(csp_len) :
+		for subpath_j in range(subpath_i,csp_len) :
 			subpath = unclipped_offset[subpath_i]
 			subpath1 = unclipped_offset[subpath_j]
-			for i in xrange(1,len(subpath)) :
+			for i in range(1,len(subpath)) :
 				# If subpath_i==subpath_j we are looking for self intersections, so
-				# we'll need search intersections only for xrange(i,len(subpath1))
-				for j in ( xrange(i,len(subpath1)) if subpath_i==subpath_j else xrange(len(subpath1))) :
+				# we'll need search intersections only for range(i,len(subpath1))
+				for j in ( range(i,len(subpath1)) if subpath_i==subpath_j else range(len(subpath1))) :
 					if subpath_i==subpath_j and j==i :
 						# Find self intersections of a segment
 						sp1,sp2,sp3 = csp_split(subpath[i-1],subpath[i],.5)
@@ -2488,7 +2506,7 @@ def csp_offset(csp, r) :
 	# Split unclipped offset by intersection points into splitted_offset
 	########################################################################
 	splitted_offset = []
-	for i in xrange(csp_len) :
+	for i in range(csp_len) :
 		subpath = unclipped_offset[i]
 		if len(intersection[i]) > 0 :
 			parts = csp_subpath_split_by_points(subpath, intersection[i])
@@ -2631,11 +2649,11 @@ def biarc(sp1, sp2, z1, z2, depth=0):
 	elif 	csmall and a!=0:	beta = -b/a
 	elif not asmall:
 		discr = b*b-4*a*c
-		if discr < 0:	raise ValueError, (a,b,c,discr)
+		if discr < 0:	raise ValueError(a,b,c,discr)
 		disq = discr**.5
 		beta1 = (-b - disq) / 2 / a
 		beta2 = (-b + disq) / 2 / a
-		if beta1*beta2 > 0 :	raise ValueError, (a,b,c,disq,beta1,beta2)
+		if beta1*beta2 > 0 :	raise ValueError(a,b,c,disq,beta1,beta2)
 		beta = max(beta1, beta2)
 	elif	asmall and bsmall:
 		return biarc_split(sp1, sp2, z1, z2, depth)
@@ -3326,7 +3344,7 @@ class Polygon:
 
 		while len(edges)>0 :
 			poly = []
-			if loops > len_edges  : raise ValueError, "Hull error"
+			if loops > len_edges  : raise ValueError( "Hull error")
 			loops+=1
 			# Find left most vertex.
 			start = (1e100,1)
@@ -3337,7 +3355,7 @@ class Polygon:
 			loops1 = 0
 			while (last[1]!=start[0] or first_run) :
 				first_run = False
-				if loops1 > len_edges  : raise ValueError, "Hull error"
+				if loops1 > len_edges  : raise ValueError("Hull error")
 				loops1 += 1
 				next = get_closes_edge_by_angle(edges[last[1]],last)
 				#draw_pointer(next[0]+next[1],"Green","line", comment=i, width= 1)
@@ -3676,7 +3694,7 @@ class Gcodetools(inkex.Effect):
 
 		f = open(self.options.directory+self.options.file, "w")
 
-		postprocessor.gcode = filter(lambda x: x in string.printable, postprocessor.gcode)
+		# postprocessor.gcode = filter(lambda x: x in string.printable, postprocessor.gcode)
 		f.write(postprocessor.gcode)
 		f.close()
 
@@ -4140,145 +4158,169 @@ class Gcodetools(inkex.Effect):
 				"""
 		# Now we'll need apply transforms to original paths
 
+	def add_arguments(self, pars):
+		add_argument = pars.add_argument
+
+		add_argument("-d", "--directory", default="/home/", help="Directory for gcode file")
+		add_argument("-f", "--filename", dest="file", default="-1.0", help="File name")
+		add_argument("--add-numeric-suffix-to-filename", type=inkex.Boolean, default=True, help="Add numeric suffix to filename")
+		add_argument("--Zscale", type=float, default="1.0", help="Scale factor Z")
+		add_argument("--Zoffset", type=float, default="0.0", help="Offset along Z")
+		add_argument("-s", "--Zsafe", type=float, default="0.5", help="Z above all obstacles")
+		add_argument("-z", "--Zsurface", type=float, default="0.0", help="Z of the surface")
+		add_argument("-c", "--Zdepth", type=float, default="-0.125", help="Z depth of cut")
+		add_argument("--Zstep", type=float, default="-0.125", help="Z step of cutting")
+		add_argument("-p", "--feed", type=float, default="4.0", help="Feed rate in unit/min")
+
+
+		add_argument("--biarc-tolerance", type=float, default="1", help="Tolerance used when calculating biarc interpolation.")
+		add_argument("--biarc-max-split-depth", type=int, default="4", help="Defines maximum depth of splitting while approximating using biarcs.")
+		add_argument("--path-to-gcode-order", default="path by path", help="Defines cutting order path by path or layer by layer.")
+		add_argument("--path-to-gcode-depth-function", default="zd", help="Path to gcode depth function.")
+		add_argument("--path-to-gcode-sort-paths", type=inkex.Boolean, default=True, help="Sort paths to reduce rapid distance.")
+		add_argument("--comment-gcode", default="", help="Comment Gcode")
+		add_argument("--comment-gcode-from-properties", type=inkex.Boolean, default=False, help="Get additional comments from Object Properties")
+
+		add_argument("--tool-diameter", type=float, default="3", help="Tool diameter used for area cutting")
+		add_argument("--max-area-curves", type=int, default="100", help="Maximum area curves for each area")
+		add_argument("--area-inkscape-radius", type=float, default="0", help="Area curves overlapping (depends on tool diameter [0, 0.9])")
+		add_argument("--area-tool-overlap", type=float, default="-10", help="Radius for preparing curves using inkscape")
+		add_argument("--unit", default="G21 (All units in mm)", help="Units")
+		# add_argument("--active-tab", type=self.arg_method('tab'), default=self.tab_help, help="Defines which tab is active")
+		add_argument("--active-tab", dest="active_tab",                          default="",                             help="Defines which tab is active")
+
+
+
+		add_argument("--area-fill-angle", type=float, default="0", help="Fill area with lines heading this angle")
+		add_argument("--area-fill-shift", type=float, default="0", help="Shift the lines by tool d * shift")
+		add_argument("--area-fill-method", default="zig-zag", help="Filling method either zig-zag or spiral")
+
+
+		add_argument("--area-find-artefacts-diameter", type=float, default="1", help="Artefacts seeking radius")
+		add_argument("--area-find-artefacts-action", default="mark with an arrow", help="Artefacts action type")
+
+
+		add_argument("--auto_select_paths", type=inkex.Boolean, default=True, help="Select all paths if nothing is selected.")
+
+		add_argument("--loft-distances", default="10", help="Distances between paths.")
+		add_argument("--loft-direction", default="crosswise", help="Direction of loft's interpolation.")
+		add_argument("--loft-interpolation-degree", type=float, default="2", help="Which interpolation use to loft the paths smooth interpolation or staright.")
+
+		add_argument("--min-arc-radius", type=float, default=".1", help="All arc having radius less than minimum will be considered as straight line")
+
+		add_argument("--engraving-sharp-angle-tollerance", type=float, default="150", help="All angles thar are less than engraving-sharp-angle-tollerance will be thought sharp")
+		add_argument("--engraving-max-dist", type=float, default="10", help="Distance from original path where engraving is not needed (usually it's cutting tool diameter)")
+		add_argument("--engraving-newton-iterations", type=int, default="4", help="Number of sample points used to calculate distance")
+		add_argument("--engraving-draw-calculation-paths", type=inkex.Boolean, default=False, help="Draw additional graphics to debug engraving path")
+		add_argument("--engraving-cutter-shape-function", default="w", help="Cutter shape function z(w). Ex. cone: w. ")
+
+
+		add_argument("--lathe-width", type=float, default=10., help="Lathe width")
+		add_argument("--lathe-fine-cut-width", type=float, default=1., help="Fine cut width")
+		add_argument("--lathe-fine-cut-count", type=int, default=1., help="Fine cut count")
+		add_argument("--lathe-create-fine-cut-using", default="Move path", help="Create fine cut using")
+		add_argument("--lathe-x-axis-remap", default="X", help="Lathe X axis remap")
+		add_argument("--lathe-z-axis-remap", default="Z", help="Lathe Z axis remap")
+
+		add_argument("--lathe-rectangular-cutter-width", type=float, default="4", help="Rectangular cutter width")
+
+		add_argument("--create-log", type=inkex.Boolean, dest="log_create_log", default=False, help="Create log files")
+		add_argument("--log-filename", default='', help="Create log files")
+
+		add_argument("--orientation-points-count", default="2", help="Orientation points count")
+		add_argument("--tools-library-type", default='cylinder cutter', help="Create tools definition")
+
+
+		add_argument("--dxfpoints-action", default='replace', help="dxfpoint sign toggle")
+
+
+
+		# add_argument("",   "--importoth-filename",		 		dest="importoth_filename", default='',			help="importoth-filename")
+		add_argument("--importoth-type", dest="importoth_type", default='kicad-dec-abs-mm',	help="importoth-type")
+
+
+		self.arg_parser.add_argument("--drilling-strategy",			dest="drilling_strategy", default='drillg83',		help="d")
+
+		add_argument("--help-language", default='http://www.cnc-club.ru/forum/viewtopic.php?f=33&t=35', help="Open help page in webbrowser.")
+
+
+		add_argument("--offset-radius", type=float, default=10., help="Offset radius")
+		add_argument("--offset-step", type=float, default=10., help="Offset step")
+		add_argument("--offset-draw-clippend-path", type=inkex.Boolean, default=False, help="Draw clipped path")
+		add_argument("--offset-just-get-distance", type=inkex.Boolean, default=False, help="Don't do offset just get distance")
+
+
+		add_argument("--arrangement-material-width", type=float,		dest="arrangement_material_width", default=500,		help="Materials width for arrangement")
+		add_argument("--arrangement-population-count", type=int,			dest="arrangement_population_count", default=100,	help="Genetic algorithm populations count")
+		add_argument("--arrangement-inline-test", type=inkex.Boolean, 	dest="arrangement_inline_test", default=False,	help="Use C-inline test (some additional packets will be needed)")
+
+
+		add_argument("--postprocessor", default='', help="Postprocessor command.")
+		add_argument("--postprocessor-custom", default='', help="Postprocessor custom command.")
+
+		add_argument("--preprocessor-custom", dest="preprocessor_custom", default='',	help="Preprocessor custom command.")
+
+		add_argument("--graffiti-max-seg-length", type=float, default=1., help="Graffiti maximum segment length.")
+		add_argument("--graffiti-min-radius", type=float, default=10., help="Graffiti minimal connector's radius.")
+		add_argument("--graffiti-start-pos", default="(0;0)", help="Graffiti Start position (x;y).")
+		add_argument("--graffiti-create-linearization-preview", type=inkex.Boolean, default=True, help="Graffiti create linearization preview.")
+		add_argument("--graffiti-create-preview", type=inkex.Boolean, default=True, help="Graffiti create preview.")
+		add_argument("--graffiti-preview-size", type=int, default=800, help="Graffiti preview's size.")
+		add_argument("--graffiti-preview-emmit", type=int, default=800, help="Preview's paint emmit (pts/s).")
+
+		add_argument("--debug-level", dest="debug_level", default=1, help="Debug level")
+
+
+		add_argument("--bender-tolerance",	type=float, 		dest="bender_tolerance", default=10.,	help="Bender angle tolerance")
+		add_argument("--bender-step",  type=float, 		dest="bender_step", default=1.,		help="Bender distance step")
+		add_argument("--bender-max-split", type=int, 		dest="bender_max_split", default=32.,		help="Bender maximum splits")
+
+		add_argument("--in-out-path", type=inkex.Boolean, default=True, help="Create in-out paths")
+		add_argument("--in-out-path-do-not-add-reference-point", type=inkex.Boolean, default=False, help="Just add reference in-out point")
+		add_argument("--in-out-path-point-max-dist", type=float, default=10., help="In-out path max distance to reference point")
+		add_argument("--in-out-path-type", default="Round", help="In-out path type")
+		add_argument("--in-out-path-len", type=float, default=10., help="In-out path length")
+		add_argument("--in-out-path-replace-original-path", type=inkex.Boolean, default=False, help="Replace original path")
+		add_argument("--in-out-path-radius", type=float, default=10., help="In-out path radius for round path")
+
+
+		add_argument("--plasma-prepare-corners", type=inkex.Boolean, default=True, help="Prepare corners")
+		add_argument("--plasma-prepare-corners-distance", type=float, default=10., help="Stepout distance for corners")
+		add_argument("--plasma-prepare-corners-tolerance", type=float, default=10., help="Maximum angle for corner (0-180 deg)")
+
+
+		add_argument(  "--box-prepare-corners-tolerance", 			type=float,	dest="box_prepare_corners_tolerance", default=10.,help="See inx-file.")
+		add_argument(  "--box-prepare-corners-tolerance-inside", 	type=float,	dest="box_prepare_corners_tolerance_inside", default=10.,help="See inx-file.")
+		add_argument(  "--box-in-len",										 		dest="box_in_len", default='',	help="See inx-file.")
+		add_argument(  "--box-out-len",													dest="box_out_len", default='',	help="See inx-file.")
+
+		add_argument(  "--box-in-len-inside",						 		dest="box_in_len_inside", default='',	help="See inx-file.")
+		add_argument(  "--box-out-len-inside",						 		dest="box_out_len_inside", default='',	help="See inx-file.")
+
+		add_argument(  "--box-prepare-a",							 		dest="box_prepare_a", default="0.",	help="See inx-file.")
+		add_argument(  "--box-prepare-b",						  		dest="box_prepare_b", default="0.",	help="See inx-file.")
+		add_argument(  "--box-prepare-c",							 		dest="box_prepare_c", default="0.",	help="See inx-file.")
+
+
+		add_argument(  "--test-1", 									type=float,	dest="test_1", default=10.,help="Test parameters")
+		add_argument(  "--test-2", 									type=float,	dest="test_2", default=10.,help="Test parameters")
+		add_argument(  "--test-3", 									type=float,	dest="test_3", default=10.,help="Test parameters")
+		add_argument(  "--test-string",								 	dest="test_string", default='',	help="See inx.")
+		add_argument(  "--test-profile",							type=inkex.Boolean, 	dest="test_profile", default=False,	help="See inx.")
+
+		add_argument("--op-x-offset", 								 dest="op_x_offset", default="0.0", help='X coordinate for (0, 0) orientation point, such as "10mm", "3in", etc')
+		add_argument("--op-y-offset", 								 dest="op_y_offset", default="0.0", help='Y coordinate for (0, 0) orientation point, such as "10mm", "3in", etc')
+
+
+
+
 
 	def __init__(self):
 
 
 		inkex.Effect.__init__(self)
 
-		self.OptionParser.add_option("-d", "--directory",					action="store", type="string", 		dest="directory", default="/home/",					help="Directory for gcode file")
-		self.OptionParser.add_option("-f", "--filename",					action="store", type="string", 		dest="file", default="-1.0",						help="File name")
-		self.OptionParser.add_option("",   "--add-numeric-suffix-to-filename", action="store", type="inkbool",	dest="add_numeric_suffix_to_filename", default=True,help="Add numeric suffix to filename")
-		self.OptionParser.add_option("",   "--Zscale",						action="store", type="float", 		dest="Zscale", default="1.0",						help="Scale factor Z")
-		self.OptionParser.add_option("",   "--Zoffset",						action="store", type="float", 		dest="Zoffset", default="0.0",						help="Offset along Z")
-		self.OptionParser.add_option("-s", "--Zsafe",						action="store", type="float", 		dest="Zsafe", default="0.5",						help="Z above all obstacles")
-		self.OptionParser.add_option("-z", "--Zsurface",					action="store", type="float", 		dest="Zsurface", default="0.0",						help="Z of the surface")
-		self.OptionParser.add_option("-c", "--Zdepth",						action="store", type="float", 		dest="Zdepth", default="-0.125",					help="Z depth of cut")
-		self.OptionParser.add_option("",   "--Zstep",						action="store", type="float", 		dest="Zstep", default="-0.125",						help="Z step of cutting")
-		self.OptionParser.add_option("-p", "--feed",						action="store", type="float", 		dest="feed", default="4.0",							help="Feed rate in unit/min")
-
-		self.OptionParser.add_option("",   "--biarc-tolerance",				action="store", type="float", 		dest="biarc_tolerance", default="1",				help="Tolerance used when calculating biarc interpolation.")
-		self.OptionParser.add_option("",   "--biarc-max-split-depth",		action="store", type="int", 		dest="biarc_max_split_depth", default="4",			help="Defines maximum depth of splitting while approximating using biarcs.")
-		self.OptionParser.add_option("",   "--path-to-gcode-order",			action="store", type="string", 		dest="path_to_gcode_order", default="path by path",	help="Defines cutting order path by path or layer by layer.")
-		self.OptionParser.add_option("",   "--path-to-gcode-depth-function",action="store", type="string", 		dest="path_to_gcode_depth_function", default="zd",	help="Path to gcode depth function.")
-		self.OptionParser.add_option("",   "--path-to-gcode-sort-paths",	action="store", type="inkbool",		dest="path_to_gcode_sort_paths", default=True,		help="Sort paths to reduce rapid distance.")
-		self.OptionParser.add_option("",   "--comment-gcode",				action="store", type="string", 		dest="comment_gcode", default="",					help="Comment Gcode")
-		self.OptionParser.add_option("",   "--comment-gcode-from-properties",action="store", type="inkbool", 	dest="comment_gcode_from_properties", default=False,help="Get additional comments from Object Properties")
-		self.OptionParser.add_option("",   "--debug-level",					action="store", type="str", 		dest="debug_level", default=1,						help="Debug level")
-
-		self.OptionParser.add_option("",   "--tool-diameter",				action="store", type="float", 		dest="tool_diameter", default="3",					help="Tool diameter used for area cutting")
-		self.OptionParser.add_option("",   "--max-area-curves",				action="store", type="int", 		dest="max_area_curves", default="100",				help="Maximum area curves for each area")
-		self.OptionParser.add_option("",   "--area-inkscape-radius",		action="store", type="float", 		dest="area_inkscape_radius", default="0",			help="Area curves overlaping (depends on tool diameter [0,0.9])")
-		self.OptionParser.add_option("",   "--area-tool-overlap",			action="store", type="float", 		dest="area_tool_overlap", default="-10",			help="Radius for preparing curves using inkscape")
-		self.OptionParser.add_option("",   "--unit",						action="store", type="string", 		dest="unit", default="G21 (All units in mm)",		help="Units")
-		self.OptionParser.add_option("",   "--active-tab",					action="store", type="string", 		dest="active_tab", default="",						help="Defines which tab is active")
-
-		self.OptionParser.add_option("",   "--area-fill-angle",				action="store", type="float", 		dest="area_fill_angle", default="0",					help="Fill area with lines heading this angle")
-		self.OptionParser.add_option("",   "--area-fill-shift",				action="store", type="float", 		dest="area_fill_shift", default="0",					help="Shift the lines by tool d * shift")
-		self.OptionParser.add_option("",   "--area-fill-method",			action="store", type="string", 		dest="area_fill_method", default="zig-zag",					help="Filling method either zig-zag or spiral")
-
-		self.OptionParser.add_option("",   "--area-find-artefacts-diameter",action="store", type="float", 		dest="area_find_artefacts_diameter", default="1",					help="Artefacts seeking radius")
-		self.OptionParser.add_option("",   "--area-find-artefacts-action",	action="store", type="string",	 	dest="area_find_artefacts_action", default="mark with an arrow",	help="Artefacts action type")
-
-		self.OptionParser.add_option("",   "--auto_select_paths",			action="store", type="inkbool",		dest="auto_select_paths", default=True,				help="Select all paths if nothing is selected.")
-
-		self.OptionParser.add_option("",   "--loft-distances",				action="store", type="string", 		dest="loft_distances", default="10",				help="Distances between paths.")
-		self.OptionParser.add_option("",   "--loft-direction",				action="store", type="string", 		dest="loft_direction", default="crosswise",			help="Direction of loft's interpolation.")
-		self.OptionParser.add_option("",   "--loft-interpolation-degree",	action="store", type="float",		dest="loft_interpolation_degree", default="2",		help="Which interpolation use to loft the paths smooth interpolation or staright.")
-
-		self.OptionParser.add_option("",   "--min-arc-radius",				action="store", type="float", 		dest="min_arc_radius", default=".1",				help="All arc having radius less than minimum will be considered as straight line")
-
-		self.OptionParser.add_option("",   "--engraving-sharp-angle-tollerance",action="store", type="float",	dest="engraving_sharp_angle_tollerance", default="150",		help="All angles thar are less than engraving-sharp-angle-tollerance will be thought sharp")
-		self.OptionParser.add_option("",   "--engraving-max-dist",			action="store", type="float", 		dest="engraving_max_dist", default="10",					help="Distanse from original path where engraving is not needed (usualy it's cutting tool diameter)")
-		self.OptionParser.add_option("",   "--engraving-newton-iterations", action="store", type="int", 		dest="engraving_newton_iterations", default="4",			help="Number of sample points used to calculate distance")
-		self.OptionParser.add_option("",   "--engraving-draw-calculation-paths",action="store", type="inkbool",	dest="engraving_draw_calculation_paths", default=False,		help="Draw additional graphics to debug engraving path")
-		self.OptionParser.add_option("",   "--engraving-cutter-shape-function",action="store", type="string", 	dest="engraving_cutter_shape_function", default="w",		help="Cutter shape function z(w). Ex. cone: w. ")
-
-		self.OptionParser.add_option("",   "--lathe-width",					action="store", type="float", 		dest="lathe_width", default=10.,							help="Lathe width")
-		self.OptionParser.add_option("",   "--lathe-fine-cut-width",		action="store", type="float", 		dest="lathe_fine_cut_width", default=1.,					help="Fine cut width")
-		self.OptionParser.add_option("",   "--lathe-fine-cut-count",		action="store", type="int", 		dest="lathe_fine_cut_count", default=1.,					help="Fine cut count")
-		self.OptionParser.add_option("",   "--lathe-create-fine-cut-using",	action="store", type="string",		dest="lathe_create_fine_cut_using", default="Move path",			help="Create fine cut using")
-		self.OptionParser.add_option("",   "--lathe-x-axis-remap",			action="store", type="string", 		dest="lathe_x_axis_remap", default="X",						help="Lathe X axis remap")
-		self.OptionParser.add_option("",   "--lathe-z-axis-remap",			action="store", type="string", 		dest="lathe_z_axis_remap", default="Z",						help="Lathe Z axis remap")
-
-		self.OptionParser.add_option("",   "--lathe-rectangular-cutter-width",action="store", type="float", 	dest="lathe_rectangular_cutter_width", default="4",		help="Rectangular cutter width")
-
-		self.OptionParser.add_option("",   "--create-log",					action="store", type="inkbool", 	dest="log_create_log", default=False,				help="Create log files")
-		self.OptionParser.add_option("",   "--log-filename",				action="store", type="string", 		dest="log_filename", default='',					help="Create log files")
-
-		self.OptionParser.add_option("",   "--orientation-points-count",	action="store", type="string", 		dest="orientation_points_count", default="2",			help="Orientation points count")
-		self.OptionParser.add_option("",   "--tools-library-type",			action="store", type="string", 		dest="tools_library_type", default='cylinder cutter',	help="Create tools definition")
-
-		self.OptionParser.add_option("",   "--importoth-filename",			action="store", type="string", 		dest="importoth_filename", default='',			help="importoth-filename")
-		self.OptionParser.add_option("",   "--importoth-type",				action="store", type="string", 		dest="importoth_type", default='kicad-dec-abs-mm',	help="importoth-type")
-
-		self.OptionParser.add_option("",   "--dxfpoints-action",			action="store", type="string", 		dest="dxfpoints_action", default='replace',			help="dxfpoint sign toggle")
-
-		self.OptionParser.add_option("",   "--drilling-strategy",			action="store", type="string", 		dest="drilling_strategy", default='drillg83',			help="d")
-
-		self.OptionParser.add_option("",   "--help-language",				action="store", type="string", 		dest="help_language", default='http://www.cnc-club.ru/forum/viewtopic.php?f=33&t=35',	help="Open help page in webbrowser.")
-
-		self.OptionParser.add_option("",   "--offset-radius",				action="store", type="float", 		dest="offset_radius", default=10.,		help="Offset radius")
-		self.OptionParser.add_option("",   "--offset-step",					action="store", type="float", 		dest="offset_step", default=10.,		help="Offset step")
-		self.OptionParser.add_option("",   "--offset-draw-clippend-path",	action="store", type="inkbool",		dest="offset_draw_clippend_path", default=False,		help="Draw clipped path")
-		self.OptionParser.add_option("",   "--offset-just-get-distance",	action="store", type="inkbool",		dest="offset_just_get_distance", default=False,		help="Don't do offset just get distance")
-
-		self.OptionParser.add_option("",   "--arrangement-material-width",	action="store", type="float",		dest="arrangement_material_width", default=500,		help="Materials width for arrangement")
-		self.OptionParser.add_option("",   "--arrangement-population-count",action="store", type="int",			dest="arrangement_population_count", default=100,	help="Genetic algorithm populations count")
-		self.OptionParser.add_option("",   "--arrangement-inline-test",		action="store", type="inkbool", 	dest="arrangement_inline_test", default=False,	help="Use C-inline test (some additional packets will be needed)")
-
-
-		self.OptionParser.add_option("",   "--postprocessor",				action="store", type="string", 		dest="postprocessor", default='',			help="Postprocessor command.")
-		self.OptionParser.add_option("",   "--postprocessor-custom",		action="store", type="string", 		dest="postprocessor_custom", default='',	help="Postprocessor custom command.")
-
-		self.OptionParser.add_option("",   "--preprocessor-custom",		action="store", type="string", 		dest="preprocessor_custom", default='',	help="Preprocessor custom command.")
-
-		self.OptionParser.add_option("",   "--graffiti-max-seg-length",		action="store", type="float", 		dest="graffiti_max_seg_length", default=1.,	help="Graffiti maximum segment length.")
-		self.OptionParser.add_option("",   "--graffiti-min-radius",			action="store", type="float", 		dest="graffiti_min_radius", default=10.,	help="Graffiti minimal connector's radius.")
-		self.OptionParser.add_option("",   "--graffiti-start-pos",			action="store", type="string", 		dest="graffiti_start_pos", default="(0;0)",	help="Graffiti Start position (x;y).")
-		self.OptionParser.add_option("",   "--graffiti-create-linearization-preview",	action="store", type="inkbool", 	dest="graffiti_create_linearization_preview", default=True,	help="Graffiti create linearization preview.")
-		self.OptionParser.add_option("",   "--graffiti-create-preview",		action="store", type="inkbool", 	dest="graffiti_create_preview", default=True,	help="Graffiti create preview.")
-		self.OptionParser.add_option("",   "--graffiti-preview-size",		action="store", type="int", 		dest="graffiti_preview_size", default=800,	help="Graffiti preview's size.")
-		self.OptionParser.add_option("",   "--graffiti-preview-emmit",		action="store", type="int", 		dest="graffiti_preview_emmit", default=800,	help="Preview's paint emmit (pts/s).")
-
-		self.OptionParser.add_option("",   "--bender-tolerance",			action="store", type="float", 		dest="bender_tolerance", default=10.,	help="Bender angle tolerance")
-		self.OptionParser.add_option("",   "--bender-step",					action="store", type="float", 		dest="bender_step", default=1.,		help="Bender distance step")
-		self.OptionParser.add_option("",   "--bender-max-split",			action="store", type="int", 		dest="bender_max_split", default=32.,		help="Bender maximum splits")
-
-		self.OptionParser.add_option("",   "--in-out-path",					action="store", type="inkbool", 	dest="in_out_path",	default=True,			help="Create in-out paths")
-		self.OptionParser.add_option("",   "--in-out-path-do-not-add-reference-point",	action="store", type="inkbool", dest="in_out_path_do_not_add_reference_point", default=False,	help="Just add reference in-out point")
-		self.OptionParser.add_option("",   "--in-out-path-point-max-dist",	action="store", type="float", 		dest="in_out_path_point_max_dist", default=10.,	help="In-out path max distance to reference point")
-		self.OptionParser.add_option("",   "--in-out-path-type",			action="store", type="string", 		dest="in_out_path_type", default="Round",	help="In-out path type")
-		self.OptionParser.add_option("",   "--in-out-path-len",				action="store", type="float", 		dest="in_out_path_len", default=10.,		help="In-out path length")
-		self.OptionParser.add_option("",   "--in-out-path-replace-original-path",action="store", type="inkbool", dest="in_out_path_replace_original_path", default=False,	help="Replace original path")
-		self.OptionParser.add_option("",   "--in-out-path-radius",			action="store", type="float", 		dest="in_out_path_radius", default=10.,		help="In-out path radius for round path")
-
-		self.OptionParser.add_option("",   "--plasma-prepare-corners",		action="store", type="inkbool",		dest="plasma_prepare_corners", default=True,	help="Prepare corners")
-		self.OptionParser.add_option("",   "--plasma-prepare-corners-distance", action="store", type="float",	dest="plasma_prepare_corners_distance", default=10.,help="Stepout distance for corners")
-		self.OptionParser.add_option("",   "--plasma-prepare-corners-tolerance", action="store", type="float",	dest="plasma_prepare_corners_tolerance", default=10.,help="Maximum angle for corner (0-180 deg)")
-
-		self.OptionParser.add_option("",   "--box-prepare-corners-tolerance", action="store", type="float",	dest="box_prepare_corners_tolerance", default=10.,help="See inx-file.")
-		self.OptionParser.add_option("",   "--box-prepare-corners-tolerance-inside", action="store", type="float",	dest="box_prepare_corners_tolerance_inside", default=10.,help="See inx-file.")
-		self.OptionParser.add_option("",   "--box-in-len",		action="store", type="string", 		dest="box_in_len", default='',	help="See inx-file.")
-		self.OptionParser.add_option("",   "--box-out-len",		action="store", type="string", 		dest="box_out_len", default='',	help="See inx-file.")
-
-		self.OptionParser.add_option("",   "--box-in-len-inside",		action="store", type="string", 		dest="box_in_len_inside", default='',	help="See inx-file.")
-		self.OptionParser.add_option("",   "--box-out-len-inside",		action="store", type="string", 		dest="box_out_len_inside", default='',	help="See inx-file.")
-
-		self.OptionParser.add_option("",   "--box-prepare-a",		action="store", type="string", 		dest="box_prepare_a", default="0.",	help="See inx-file.")
-		self.OptionParser.add_option("",   "--box-prepare-b",		action="store", type="string", 		dest="box_prepare_b", default="0.",	help="See inx-file.")
-		self.OptionParser.add_option("",   "--box-prepare-c",		action="store", type="string", 		dest="box_prepare_c", default="0.",	help="See inx-file.")
-
-
-		self.OptionParser.add_option("",   "--test-1", action="store", type="float",	dest="test_1", default=10.,help="Test parameters")
-		self.OptionParser.add_option("",   "--test-2", action="store", type="float",	dest="test_2", default=10.,help="Test parameters")
-		self.OptionParser.add_option("",   "--test-3", action="store", type="float",	dest="test_3", default=10.,help="Test parameters")
-		self.OptionParser.add_option("",   "--test-string",	action="store", type="string", 	dest="test_string", default='',	help="See inx.")
-		self.OptionParser.add_option("",   "--test-profile",	action="store", type="inkbool", 	dest="test_profile", default=False,	help="See inx.")
-
-		self.OptionParser.add_option("", "--op-x-offset", action="store", type="string", dest="op_x_offset", default="0.0", help='X coordinate for (0, 0) orientation point, such as "10mm", "3in", etc')
-		self.OptionParser.add_option("", "--op-y-offset", action="store", type="string", dest="op_y_offset", default="0.0", help='Y coordinate for (0, 0) orientation point, such as "10mm", "3in", etc')
-
+		
 		self.default_tool = {
 					"name": "Default tool",
 					"id": "default tool",
@@ -4472,13 +4514,11 @@ class Gcodetools(inkex.Effect):
 
 			if s!='':
 				if s[1] == 'line':
-					attr = {	'style': style['line'],
-								'd':'M %s,%s L %s,%s' % (s[0][0], s[0][1], si[0][0], si[0][1]),
-								"gcodetools": "Preview",
-							}
-					if transform != [] :
-						attr["transform"] = transform
-					inkex.etree.SubElement(	group, inkex.addNS('path','svg'),  attr	)
+					elem = group.add(PathElement(gcodetools="Preview"))
+					elem.transform = transform
+					elem.style = style['line']
+					elem.path = 'M {},{} L {},{}'.format(s[0][0], s[0][1], si[0][0], si[0][1])
+
 				elif s[1] == 'arc':
 					arcn += 1
 					sp = s[0]
@@ -4822,9 +4862,9 @@ class Gcodetools(inkex.Effect):
 
 	def transform_csp(self, csp_, layer, reverse = False):
 		csp = [  [ [csp_[i][j][0][:],csp_[i][j][1][:],csp_[i][j][2][:]]  for j in range(len(csp_[i])) ]   for i in range(len(csp_)) ]
-		for i in xrange(len(csp)):
-			for j in xrange(len(csp[i])):
-				for k in xrange(len(csp[i][j])):
+		for i in range(len(csp)):
+			for j in range(len(csp[i])):
+				for k in range(len(csp[i][j])):
 					csp[i][j][k] = self.transform(csp[i][j][k],layer, reverse)
 		return csp
 
@@ -5117,9 +5157,9 @@ class Gcodetools(inkex.Effect):
 				if value == None or key == None: continue
 				#print_("Found tool parameter '%s':'%s'" % (key,value))
 				if key in self.default_tool.keys() :
-					 try :
+					try:
 						tool[key] = type(self.default_tool[key])(value)
-					 except :
+					except:
 						tool[key] = self.default_tool[key]
 						self.error(_("Warning! Tool's and default tool's parameter's (%s) types are not the same ( type('%s') != type('%s') ).") % (key, value, self.default_tool[key]), "tools_warning")
 				else :
@@ -5278,7 +5318,7 @@ class Gcodetools(inkex.Effect):
 			i=0
 			out=[]
 			for p in points:
-				for j in xrange(i,len(points)):
+				for j in range(i,len(points)):
 					if p==points[j]: points[j]=[None,None]
 				if p!=[None,None]: out+=[p]
 			i+=1
@@ -5287,7 +5327,7 @@ class Gcodetools(inkex.Effect):
 
 		def get_way_len(points):
 			l=0
-			for i in xrange(1,len(points)):
+			for i in range(1,len(points)):
 				l+=sqrt((points[i][0]-points[i-1][0])**2 + (points[i][1]-points[i-1][1])**2)
 			return l
 
@@ -5314,7 +5354,7 @@ class Gcodetools(inkex.Effect):
 				tpoints=points[:]
 				cw=[]
 #				print_(("tpoints=",tpoints))
-				for j in xrange(0,len(points)):
+				for j in range(0,len(points)):
 					p=get_boundaries(get_boundaries(tpoints)[w[0]])[w[1]]
 #					print_(p)
 					tpoints.remove(p[0])
@@ -5392,7 +5432,11 @@ class Gcodetools(inkex.Effect):
 		self.check_dir()
 		gcode = ""
 
-		biarc_group = inkex.etree.SubElement( self.selected_paths.keys()[0] if len(self.selected_paths.keys())>0 else self.layers[0], inkex.addNS('g','svg') )
+		# biarc_group = inkex.etree.SubElement( self.selected_paths.keys()[0] if len(self.selected_paths.keys())>0 else self.layers[0], inkex.addNS('g','svg') )
+		parent = list(self.selected_paths)[0] if self.selected_paths else self.layers[0]
+		biarc_group = parent.add(Group())
+
+		
 		print_(("self.layers=",self.layers))
 		print_(("paths=",paths))
 		colors = {}
@@ -5488,12 +5532,12 @@ class Gcodetools(inkex.Effect):
 							gcode += gcode_comment_str("path id: %s at depth step: %s" % (curves[key][0][0],z))
 
 							# add comment with path len
-							l = 0
-							for c in curves[key][1] :
-								b = Biarc()
-								b.from_old_style(c)
-								l += b.l()
-							gcode += gcode_comment_str("path len: %0.5f"%l)
+							# l = 0
+							# for c in curves[key][1] :
+							# 	b = Biarc()
+							# 	b.from_old_style(c)
+							# 	l += b.l()
+							# gcode += gcode_comment_str("path len: %0.5f"%l)
 
 							if curves[key][0][2] != "()" :
 								gcode += curves[key][0][2] # add comment
@@ -5590,9 +5634,15 @@ class Gcodetools(inkex.Effect):
 						}
 
 					tool_num = sum([len(self.tools[i]) for i in self.tools])
-					tools_group = inkex.etree.SubElement(layer_nodes[layername], inkex.addNS('g','svg'), {'gcodetools': "Gcodetools tool definition"})
-					bg = inkex.etree.SubElement(	tools_group, inkex.addNS('path','svg'),
-						{'style':"fill:#0000FF;fill-opacity:0.5;stroke:#444444; stroke-width:1px;", "gcodetools":"Gcodetools tool background"})
+					colors = ["00ff00", "0000ff", "ff0000", "fefe00", "00fefe", "fe00fe", "fe7e00", "7efe00", "00fe7e", "007efe", "7e00fe", "fe007e"]
+
+					tools_group = layer.add(Group(gcodetools="Gcodetools tool definition"))
+
+					bg = tools_group.add(PathElement(gcodetools="Gcodetools tool background"))
+
+					bg.style = "fill-opacity:0.5;stroke:#444444;"
+					bg.style['fill'] = "#" + colors[tool_num % len(colors)]
+
 
 					y = 0
 					keys = []
@@ -5895,11 +5945,11 @@ class Gcodetools(inkex.Effect):
 			elif 	csmall and a!=0:	beta = -b/a
 			elif not asmall:
 				discr = b*b-4*a*c
-				if discr < 0:	raise ValueError, (a,b,c,discr)
+				if discr < 0:	raise ValueError(a,b,c,discr)
 				disq = discr**.5
 				beta1 = (-b - disq) / 2 / a
 				beta2 = (-b + disq) / 2 / a
-				if beta1*beta2 > 0 :	raise ValueError, (a,b,c,disq,beta1,beta2)
+				if beta1*beta2 > 0 :	raise ValueError(a,b,c,disq,beta1,beta2)
 				beta = max(beta1, beta2)
 			elif	asmall and bsmall:
 				return biarc_split(sp1, sp2, z1, z2, depth)
@@ -6190,37 +6240,41 @@ class Gcodetools(inkex.Effect):
 		eye_dist = 100 #3D constant. Try varying it for your eyes
 
 
-		def bisect((nx1,ny1),(nx2,ny2)) :
+		def bisect(nxy1, nxy2):
 			"""LT Find angle bisecting the normals n1 and n2
 
 			Parameters: Normalised normals
 			Returns: nx - Normal of bisector, normalised to 1/cos(a)
-				   ny -
-				   sinBis2 - sin(angle turned/2): positive if turning in
+					ny -
+					sinBis2 - sin(angle turned/2): positive if turning in
 			Note that bisect(n1,n2) and bisect(n2,n1) give opposite sinBis2 results
 			If sinturn is less than the user's requested angle tolerance, I return 0
 			"""
-			#We can get absolute value of cos(bisector vector)
-			#Note: Need to use max in case of rounding errors
-			cosBis = sqrt(max(0,(1.0+nx1*nx2-ny1*ny2)/2.0))
-			#We can get correct sign of the sin, assuming cos is positive
-			if (abs(ny1-ny2)< engraving_tolerance)  or (abs(cosBis) < engraving_tolerance) :
-				if (abs(nx1-nx2)< engraving_tolerance): return(nx1,ny1,0.0)
-				sinBis = copysign(1,ny1)
-			else :
-				sinBis = cosBis*(nx2-nx1)/(ny1-ny2)
+			(nx1, ny1) = nxy1
+			(nx2, ny2) = nxy2
+			cosBis = math.sqrt(max(0, (1.0 + nx1 * nx2 - ny1 * ny2) / 2.0))
+			# We can get correct sign of the sin, assuming cos is positive
+			if (abs(ny1 - ny2) < ENGRAVING_TOLERANCE) or (abs(cosBis) < ENGRAVING_TOLERANCE):
+				if abs(nx1 - nx2) < ENGRAVING_TOLERANCE:
+					return nx1, ny1, 0.0
+				sinBis = math.copysign(1, ny1)
+			else:
+				sinBis = cosBis * (nx2 - nx1) / (ny1 - ny2)
 			# We can correct signs by noting that the dot product
 			# of bisector and either normal must be >0
-			costurn=cosBis*nx1+sinBis*ny1
-			if costurn == 0 : return (ny1*100,-nx1*100,1) #Path doubles back on itself
-			sinturn=sinBis*nx1-cosBis*ny1
-			if costurn<0 :  sinturn=-sinturn
-			if 0 < sinturn*114.6 < (180-self.options.engraving_sharp_angle_tollerance) :
-				sinturn=0 #set to zero if less than the user wants to see.
-			return (cosBis/costurn,sinBis/costurn, sinturn)
-			#end bisect
+			costurn = cosBis * nx1 + sinBis * ny1
+			if costurn == 0:
+				return ny1 * 100, -nx1 * 100, 1  # Path doubles back on itself
+			sinturn = sinBis * nx1 - cosBis * ny1
+			if costurn < 0:
+				sinturn = -sinturn
+			if 0 < sinturn * 114.6 < (180 - self.options.engraving_sharp_angle_tollerance):
+				sinturn = 0  # set to zero if less than the user wants to see.
+			return cosBis / costurn, sinBis / costurn, sinturn
+			# end bisect
 
-		def get_radius_to_line((x1,y1),(nx1,ny1), (nx2,ny2),(x2,y2),(nx23,ny23),(x3,y3),(nx3,ny3)):
+
+		def get_radius_to_line(xy1, n_xy1, n_xy2, xy2, n_xy23, xy3, n_xy3):
 			"""LT find biggest circle we can engrave here, if constrained by line 2-3
 
 			Parameters:
@@ -6236,85 +6290,96 @@ class Gcodetools(inkex.Effect):
 			- With nx1=ny1=0 it finds circle centred at x1,y1
 			- with nx1,ny1 normalised, it finds circle tangential at x1,y1
 			- with nx1,ny1 scaled by 1/cos(a) it finds circle centred on an angle bisector
-				 where a is the angle between the bisector and the previous/next normals
+					where a is the angle between the bisector and the previous/next normals
 
 			If the centre of the circle tangential to the line 2-3 is outside the
 			angle bisectors at its ends, ignore this line.
 
-			# Note that it handles corners in the conventional manner of letter cutting
-			# by mitering, not rounding.
-			# Algorithm uses dot products of normals to find radius
-			# and hence coordinates of centre
+			Note that it handles corners in the conventional manner of letter cutting
+			by mitering, not rounding.
+			Algorithm uses dot products of normals to find radius
+			and hence coordinates of centre
 			"""
-
+			(x1, y1) = xy1
+			(nx1, ny1) = n_xy1
+			(nx2, ny2) = n_xy2
+			(x2, y2) = xy2
+			(nx23, ny23) = n_xy23
+			(x3, y3) = xy3
+			(nx3, ny3) = n_xy3
 			global max_dist
 
-			#Start by converting coordinates to be relative to x1,y1
-			x2,y2= x2-x1, y2-y1
-			x3,y3= x3-x1, y3-y1
+			# Start by converting coordinates to be relative to x1,y1
+			x2, y2 = x2 - x1, y2 - y1
+			x3, y3 = x3 - x1, y3 - y1
 
-			#The logic uses vector arithmetic.
-			#The dot product of two vectors gives the product of their lengths
-			#multiplied by the cos of the angle between them.
+			# The logic uses vector arithmetic.
+			# The dot product of two vectors gives the product of their lengths
+			# multiplied by the cos of the angle between them.
 			# So, the perpendicular distance from x1y1 to the line 2-3
 			# is equal to the dot product of its normal and x2y2 or x3y3
-			#It is also equal to the projection of x1y1-xcyc on the line's normal
+			# It is also equal to the projection of x1y1-xcyc on the line's normal
 			# plus the radius. But, as the normal faces inside the path we must negate it.
 
-			#Make sure the line in question is facing x1,y1 and vice versa
-			dist=-x2*nx23-y2*ny23
-			if dist<0 : return max_dist
-			denom=1.-nx23*nx1-ny23*ny1
-			if denom < engraving_tolerance : return max_dist
-
-			#radius and centre are:
-			r=dist/denom
-			cx=r*nx1
-			cy=r*ny1
-			#if c is not between the angle bisectors at the ends of the line, ignore
-			#Use vector cross products. Not sure if I need the .0001 safety margins:
-			if (x2-cx)*ny2 > (y2-cy)*nx2 +0.0001 :
+			# Make sure the line in question is facing x1,y1 and vice versa
+			dist = -x2 * nx23 - y2 * ny23
+			if dist < 0:
 				return max_dist
-			if (x3-cx)*ny3 < (y3-cy)*nx3  -0.0001 :
+			denom = 1. - nx23 * nx1 - ny23 * ny1
+			if denom < ENGRAVING_TOLERANCE:
+				return max_dist
+
+			# radius and centre are:
+			r = dist / denom
+			cx = r * nx1
+			cy = r * ny1
+			# if c is not between the angle bisectors at the ends of the line, ignore
+			# Use vector cross products. Not sure if I need the .0001 safety margins:
+			if (x2 - cx) * ny2 > (y2 - cy) * nx2 + 0.0001:
+				return max_dist
+			if (x3 - cx) * ny3 < (y3 - cy) * nx3 - 0.0001:
 				return max_dist
 			return min(r, max_dist)
-			#end of get_radius_to_line
+			# end of get_radius_to_line
 
-		def get_radius_to_point((x1,y1),(nx,ny), (x2,y2)):
+		def get_radius_to_point(xy1, n_xy, xy2):
 			"""LT find biggest circle we can engrave here, constrained by point x2,y2
 
 			This function can be used in three ways:
 			- With nx=ny=0 it finds circle centred at x1,y1
 			- with nx,ny normalised, it finds circle tangential at x1,y1
 			- with nx,ny scaled by 1/cos(a) it finds circle centred on an angle bisector
-				 where a is the angle between the bisector and the previous/next normals
+					where a is the angle between the bisector and the previous/next normals
 
 			Note that I wrote this to replace find_cutter_centre. It is far less
 			sophisticated but, I hope, far faster.
 			It turns out that finding a circle touching a point is harder than a circle
 			touching a line.
 			"""
-
+			(x1, y1) = xy1
+			(nx, ny) = n_xy
+			(x2, y2) = xy2
 			global max_dist
 
-			#Start by converting coordinates to be relative to x1,y1
-			x2,y2= x2-x1, y2-y1
-			denom=nx**2+ny**2-1
-			if denom<=engraving_tolerance : #Not a corner bisector
-				if denom==-1 : #Find circle centre x1,y1
-					return sqrt(x2**2+y2**2)
-				#if x2,y2 not in front of the normal...
-				if x2*nx+y2*ny <=0 : return max_dist
-				#print_("Straight",x1,y1,nx,ny,x2,y2)
-				return (x2**2+y2**2)/(2*(x2*nx+y2*ny) )
-			#It is a corner bisector, so..
-			discriminator = (x2*nx+y2*ny)**2 - denom*(x2**2+y2**2)
-			if discriminator < 0 :
-				return max_dist #this part irrelevant
-			r=(x2*nx+y2*ny -sqrt(discriminator))/denom
-			#print_("Corner",x1,y1,nx,ny,x1+x2,y1+y2,discriminator,r)
+			# Start by converting coordinates to be relative to x1,y1
+			x2 = x2 - x1
+			y2 = y2 - y1
+			denom = nx ** 2 + ny ** 2 - 1
+			if denom <= ENGRAVING_TOLERANCE:  # Not a corner bisector
+				if denom == -1:  # Find circle centre x1,y1
+					return math.sqrt(x2 ** 2 + y2 ** 2)
+				# if x2,y2 not in front of the normal...
+				if x2 * nx + y2 * ny <= 0:
+					return max_dist
+				return (x2 ** 2 + y2 ** 2) / (2 * (x2 * nx + y2 * ny))
+			# It is a corner bisector, so..
+			discriminator = (x2 * nx + y2 * ny) ** 2 - denom * (x2 ** 2 + y2 ** 2)
+			if discriminator < 0:
+				return max_dist  # this part irrelevant
+			r = (x2 * nx + y2 * ny - math.sqrt(discriminator)) / denom
 			return min(r, max_dist)
-			#end of get_radius_to_point
+			# end of get_radius_to_point
+
 
 		def bez_divide(a,b,c,d):
 			"""LT recursively divide a Bezier.
@@ -6357,7 +6422,7 @@ class Gcodetools(inkex.Effect):
 			return bez_divide(a,[abx,aby],[abcx,abcy],m) + bez_divide(m,[bcdx,bcdy],[cdx,cdy],d)
 			#end of bez_divide
 
-		def get_biggest((x1,y1),(nx,ny)):
+		def get_biggest(nxy1, nxy2):
 			"""LT Find biggest circle we can draw inside path at point x1,y1 normal nx,ny
 
 			Parameters:
@@ -6367,55 +6432,70 @@ class Gcodetools(inkex.Effect):
 				tuple (j,i,r)
 				..where j and i are indices of limiting segment, r is radius
 			"""
-			global max_dist, nlLT, i, j
-			n1 = nlLT[j][i-1] #current node
+			(x1, y1) = nxy1
+			(nx, ny) = nxy2
+			global max_dist
+			global nlLT
+			global i
+			global j
+
+			n1 = nlLT[j][i - 1]  # current node
 			jjmin = -1
 			iimin = -1
 			r = max_dist
 			# set limits within which to look for lines
-			xmin, xmax = x1+r*nx-r, x1+r*nx+r
-			ymin, ymax = y1+r*ny-r, y1+r*ny+r
-			for jj in xrange(0,len(nlLT)) : #for every subpath of this object
-				for ii in xrange(0,len(nlLT[jj])) : #for every point and line
-					if nlLT[jj][ii-1][2] : #if a point
-						if jj==j : #except this one
-							if abs(ii-i)<3 or abs(ii-i)>len(nlLT[j])-3 : continue
-						t1=get_radius_to_point((x1,y1),(nx,ny),nlLT[jj][ii-1][0] )
-						#print_("Try pt   i,ii,t1,x1,y1",i,ii,t1,x1,y1)
-					else: #doing a line
-						if jj==j : #except this one
-							if abs(ii-i)<2 or abs(ii-i)==len(nlLT[j])-1 : continue
-							if abs(ii-i)==2  and nlLT[j][(ii+i)/2-1][3]<=0 : continue
-							if (abs(ii-i)==len(nlLT[j])-2) and nlLT[j][-1][3]<=0 : continue
-						nx2,ny2 = nlLT[jj][ii-2][1]
-						x2,y2 = nlLT[jj][ii-1][0]
-						nx23,ny23 = nlLT[jj][ii-1][1]
-						x3,y3 = nlLT[jj][ii][0]
-						nx3,ny3 = nlLT[jj][ii][1]
-						if nlLT[jj][ii-2][3]>0 : #acute, so use normal, not bisector
-							nx2=nx23
-							ny2=ny23
-						if nlLT[jj][ii][3]>0 : #acute, so use normal, not bisector
-							nx3=nx23
-							ny3=ny23
-						x23min,x23max=min(x2,x3),max(x2,x3)
-						y23min,y23max=min(y2,y3),max(y2,y3)
-						#see if line in range
-						if n1[2]==False and (x23max<xmin or x23min>xmax or y23max<ymin or y23min>ymax) : continue
-						t1=get_radius_to_line((x1,y1),(nx,ny), (nx2,ny2),(x2,y2),(nx23,ny23), (x3,y3),(nx3,ny3))
-						#print_("Try line i,ii,t1,x1,y1",i,ii,t1,x1,y1)
-					if 0<=t1<r :
+			xmin = x1 + r * nx - r
+			xmax = x1 + r * nx + r
+			ymin = y1 + r * ny - r
+			ymax = y1 + r * ny + r
+			for jj in range(0, len(nlLT)):  # for every subpath of this object
+				for ii in range(0, len(nlLT[jj])):  # for every point and line
+					if nlLT[jj][ii - 1][2]:  # if a point
+						if jj == j:  # except this one
+							if abs(ii - i) < 3 or abs(ii - i) > len(nlLT[j]) - 3:
+								continue
+						t1 = get_radius_to_point((x1, y1), (nx, ny), nlLT[jj][ii - 1][0])
+					else:  # doing a line
+						if jj == j:  # except this one
+							if abs(ii - i) < 2 or abs(ii - i) == len(nlLT[j]) - 1:
+								continue
+							if abs(ii - i) == 2 and nlLT[j][(ii + i) / 2 - 1][3] <= 0:
+								continue
+							if (abs(ii - i) == len(nlLT[j]) - 2) and nlLT[j][-1][3] <= 0:
+								continue
+						nx2, ny2 = nlLT[jj][ii - 2][1]
+						x2, y2 = nlLT[jj][ii - 1][0]
+						nx23, ny23 = nlLT[jj][ii - 1][1]
+						x3, y3 = nlLT[jj][ii][0]
+						nx3, ny3 = nlLT[jj][ii][1]
+						if nlLT[jj][ii - 2][3] > 0:  # acute, so use normal, not bisector
+							nx2 = nx23
+							ny2 = ny23
+						if nlLT[jj][ii][3] > 0:  # acute, so use normal, not bisector
+							nx3 = nx23
+							ny3 = ny23
+						x23min = min(x2, x3)
+						x23max = max(x2, x3)
+						y23min = min(y2, y3)
+						y23max = max(y2, y3)
+						# see if line in range
+						if n1[2] == False and (x23max < xmin or x23min > xmax or y23max < ymin or y23min > ymax):
+							continue
+						t1 = get_radius_to_line((x1, y1), (nx, ny), (nx2, ny2), (x2, y2), (nx23, ny23), (x3, y3), (nx3, ny3))
+					if 0 <= t1 < r:
 						r = t1
 						iimin = ii
 						jjmin = jj
-						xmin, xmax = x1+r*nx-r, x1+r*nx+r
-						ymin, ymax = y1+r*ny-r, y1+r*ny+r
-				#next ii
-			#next jj
-			return (jjmin,iimin,r)
-			#end of get_biggest
+						xmin = x1 + r * nx - r
+						xmax = x1 + r * nx + r
+						ymin = y1 + r * ny - r
+						ymax = y1 + r * ny + r
+				# next ii
+			# next jj
+			return jjmin, iimin, r
+			# end of get_biggest
 
-		def line_divide((x0,y0),j0,i0,(x1,y1),j1,i1,(nx,ny),length):
+		def line_divide(xy0, j0, i0, xy1, j1, i1, n_xy, length):
 			"""LT recursively divide a line as much as necessary
 
 			NOTE: This function is not currently used
@@ -6430,88 +6510,95 @@ class Gcodetools(inkex.Effect):
 					each a list of 3 reals: x, y coordinates, radius
 
 			"""
-			global nlLT, i, j, lmin
-			x2=(x0+x1)/2
-			y2=(y0+y1)/2
-			j2,i2,r2=get_biggest( (x2,y2), (nx,ny))
-			if length<lmin : return [ [x2, y2, r2] ]
-			if j2==j0 and i2==i0 : #Same as left end. Don't subdivide this part any more
-				return [ [x2, y2, r2], line_divide((x2,y2),j2,i2,(x1,y1),j1,i1,(nx,ny),length/2)]
-			if j2==j1 and i2==i1 : #Same as right end. Don't subdivide this part any more
-				return [ line_divide((x0,y0),j0,i0,(x2,y2),j2,i2,(nx,ny),length/2), [x2, y2, r2] ]
-			return [ line_divide((x0,y0),j0,i0,(x2,y2),j2,i2,(nx,ny),length/2), line_divide((x2,y2),j2,i2,(x1,y1),j1,i1,(nx,ny),length/2)]
-			#end of line_divide()
+			(x0, y0) = xy0
+			(x1, y1) = xy1
+			(nx, ny) = n_xy
+			global nlLT
+			global i
+			global j
+			global lmin
+			x2 = (x0 + x1) / 2
+			y2 = (y0 + y1) / 2
+			j2, i2, r2 = get_biggest((x2, y2), (nx, ny))
+			if length < lmin:
+				return [[x2, y2, r2]]
+			if j2 == j0 and i2 == i0:  # Same as left end. Don't subdivide this part any more
+				return [[x2, y2, r2], line_divide((x2, y2), j2, i2, (x1, y1), j1, i1, (nx, ny), length / 2)]
+			if j2 == j1 and i2 == i1:  # Same as right end. Don't subdivide this part any more
+				return [line_divide((x0, y0), j0, i0, (x2, y2), j2, i2, (nx, ny), length / 2), [x2, y2, r2]]
+			return [line_divide((x0, y0), j0, i0, (x2, y2), j2, i2, (nx, ny), length / 2), line_divide((x2, y2), j2, i2, (x1, y1), j1, i1, (nx, ny), length / 2)]
+			# end of line_divide()
 
-		def save_point((x,y),w,i,j,ii,jj):
+		def save_point(xy, w, i, j, ii, jj):
 			"""LT Save this point and delete previous one if linear
 
 			The point is, we generate tons of points but many may be in a straight 3D line.
-			There is no benefit in saving the imtermediate points.
+			There is no benefit in saving the intermediate points.
 			"""
-			global wl, cspm
-			x=round(x,4) #round to 4 decimals
-			y=round(y,4) #round to 4 decimals
-			w=round(w,4) #round to 4 decimals
-			if len(cspm)>1 :
-				xy1a,xy1,xy1b,i1,j1,ii1,jj1=cspm[-1]
-				w1=wl[-1]
-				if i==i1 and j==j1 and ii==ii1 and jj==jj1 : #one match
-					xy1a,xy2,xy1b,i1,j1,ii1,jj1=cspm[-2]
-					w2=wl[-2]
-					if i==i1 and j==j1 and ii==ii1 and jj==jj1 : #two matches. Now test linearity
-						length1=hypot(xy1[0]-x,xy1[1]-y)
-						length2=hypot(xy2[0]-x,xy2[1]-y)
-						length12=hypot(xy2[0]-xy1[0],xy2[1]-xy1[1])
-						#get the xy distance of point 1 from the line 0-2
-						if length2>length1 and length2>length12 : #point 1 between them
-							xydist=abs( (xy2[0]-x)*(xy1[1]-y)-(xy1[0]-x)*(xy2[1]-y) )/length2
-							if xydist<engraving_tolerance : #so far so good
-								wdist=w2+(w-w2)*length1/length2 -w1
-								if abs(wdist)<engraving_tolerance :
-									#print_("pop",j,i,xy1)
+			(x, y) = xy
+			global wl
+			global cspm
+			x = round(x, 4)  # round to 4 decimals
+			y = round(y, 4)  # round to 4 decimals
+			w = round(w, 4)  # round to 4 decimals
+			if len(cspm) > 1:
+				xy1a, xy1, xy1b, i1, j1, ii1, jj1 = cspm[-1]
+				w1 = wl[-1]
+				if i == i1 and j == j1 and ii == ii1 and jj == jj1:  # one match
+					xy1a, xy2, xy1b, i1, j1, ii1, jj1 = cspm[-2]
+					w2 = wl[-2]
+					if i == i1 and j == j1 and ii == ii1 and jj == jj1:  # two matches. Now test linearity
+						length1 = math.hypot(xy1[0] - x, xy1[1] - y)
+						length2 = math.hypot(xy2[0] - x, xy2[1] - y)
+						length12 = math.hypot(xy2[0] - xy1[0], xy2[1] - xy1[1])
+						# get the xy distance of point 1 from the line 0-2
+						if length2 > length1 and length2 > length12:  # point 1 between them
+							xydist = abs((xy2[0] - x) * (xy1[1] - y) - (xy1[0] - x) * (xy2[1] - y)) / length2
+							if xydist < ENGRAVING_TOLERANCE:  # so far so good
+								wdist = w2 + (w - w2) * length1 / length2 - w1
+								if abs(wdist) < ENGRAVING_TOLERANCE:
 									cspm.pop()
 									wl.pop()
-			cspm+=[ [ [x,y],[x,y],[x,y],i,j,ii,jj ] ]
-			wl+=[w]
-			#end of save_point
+			cspm += [[[x, y], [x, y], [x, y], i, j, ii, jj]]
+			wl += [w]
+			# end of save_point
 
-		def draw_point((x0,y0),(x,y),w,t):
+		def draw_point(xy0, xy, w, t):
 			"""LT Draw this point as a circle with a 1px dot in the middle (x,y)
 			and a 3D line from (x0,y0) down to x,y. 3D line thickness should be t/2
 
 			Note that points that are subsequently erased as being unneeded do get
 			displayed, but this helps the user see the total area covered.
 			"""
-			global gcode_3Dleft ,gcode_3Dright
-			if self.options.engraving_draw_calculation_paths :
-				self.draw_arc( [x,y], 0.3,
-								group = engraving_group, layer = layer,
-								style =  "fill:#ff00ff; fill-opacity:0.46; stroke:#000000; stroke-width:0.1;",
-								gcodetools_tag = "Engraving calculation toolpath"
-								)
-				#Don't draw zero radius circles
+			(x0, y0) = xy0
+			(x, y) = xy
+			global gcode_3Dleft
+			global gcode_3Dright
+			if self.options.engraving_draw_calculation_paths:
+				elem = engraving_group.add(PathElement.arc((x, y), 1))
+				elem.set('gcodetools', "Engraving calculation toolpath")
+				elem.style = "fill:#ff00ff; fill-opacity:0.46; stroke:#000000; stroke-width:0.1;"
+
+				# Don't draw zero radius circles
 				if w:
-					self.draw_arc( [x,y], w,
-								group = engraving_group, layer = layer,
-								style =  "fill:none; fill-opacity:0.46; stroke:#000000; stroke-width:0.1;",
-								gcodetools_tag = "Engraving calculation toolpath"
-								)
+					elem = engraving_group.add(PathElement.arc((x, y), w))
+					elem.set('gcodetools', "Engraving calculation paths")
+					elem.style = "fill:none; fill-opacity:0.46; stroke:#000000; stroke-width:0.1;"
 
 					# Find slope direction for shading
-					s=atan2(y-y0,x-x0) #-pi to pi
+					s = math.atan2(y - y0, x - x0)  # -pi to pi
 					# convert to 2 hex digits as a shade of red
-					s2="#{0:x}0000".format(int(101*(1.5-sin(s+0.5))))
-					self.draw_pointer(
-										[x0-eye_dist,y0,x-eye_dist-0.14*w,y], layer=layer, group = gcode_3Dleft, figure="line",
-										style = "stroke:" + s2 + "; stroke-opacity:1; stroke-width:" + str(t/2) +" ; fill:none",
-										gcodetools_tag = "Gcode G1R"
-									)
-					self.draw_pointer(
-										[x0+eye_dist,y0,x+eye_dist+0.14*r,y], layer=layer, group = gcode_3Dright, figure="line",
-										style = "stroke:" + s2 + "; stroke-opacity:1; stroke-width:" + str(t/2) +" ; fill:none",
-										gcodetools_tag = "Gcode G1L"
-									)
-			#end of draw_point
+					s2 = "#{0:x}0000".format(int(101 * (1.5 - math.sin(s + 0.5))))
+					style = "stroke:{}; stroke-opacity:1;stroke-width:{};fill:none".format(s2, t/2)
+					right = gcode_3Dleft.add(PathElement(style=style, gcodetools="Gcode G1R"))
+					right.path = "M {:f},{:f} L {:f},{:f}".format(
+						x0 - eye_dist, y0, x - eye_dist - 0.14 * w, y)
+					left = gcode_3Dright.add(PathElement(style=style, gcodetools="Gcode G1L"))
+					left.path = "M {:f},{:f} L {:f},{:f}".format(
+						x0 + eye_dist, y0, x + eye_dist + 0.14 * r, y)
+
+
+		
 
 		#end of subfunction definitions. engraving() starts here:
 		gcode = ''
@@ -6570,7 +6657,7 @@ class Gcodetools(inkex.Effect):
 
 						#LT: Create my own list. n1LT[j] is for subpath j
 						nlLT = []
-						for j in xrange(len(cspi)): #LT For each subpath...
+						for j in range(len(cspi)): #LT For each subpath...
 							# Remove zero length segments, assume closed path
 							i = 0 #LT was from i=1
 							while i<len(cspi[j]):
@@ -6697,11 +6784,11 @@ class Gcodetools(inkex.Effect):
 							#print_("nlLT",nnn) #LT debug stuff
 						# Calculate offset points
 						reflex=False
-						for j in xrange(len(nlLT)): #LT6b for each subpath
+						for j in range(len(nlLT)): #LT6b for each subpath
 							cspm=[] #Will be my output. List of csps.
 							wl=[] #Will be my w output list
 							w = r = 0 #LT initial, as first point is an angle
-							for i in xrange(len(nlLT[j])) : #LT for each node
+							for i in range(len(nlLT[j])) : #LT for each node
 								#LT Note: Python enables wrapping of array indices
 								# backwards to -1, -2, but not forwards. Hence:
 								n0 = nlLT[j][i-2] #previous node
@@ -6736,7 +6823,7 @@ class Gcodetools(inkex.Effect):
 									#split excess evenly at both ends
 									bit0+=(length-bit0-bitlen*bits)/2
 									#print_("j,i,r,bit0,bits",j,i,w,bit0,bits)
-								for b in xrange(bits) : #divide line into bits
+								for b in range(bits) : #divide line into bits
 									x1=x1a+ny*(b*bitlen+bit0)
 									y1=y1a-nx*(b*bitlen+bit0)
 									jjmin,iimin,w=get_biggest( (x1,y1), (nx,ny))
@@ -6784,7 +6871,7 @@ class Gcodetools(inkex.Effect):
 												style = styles["biarc_style_i"]['biarc1'],
 												gcodetools_tag = "Engraving calculation paths"
 											)
-								for i in xrange(len(cspm)):
+								for i in range(len(cspm)):
 									self.draw_arc(cspm[i][1], wl[i], layer=layer, group=engraving_group, style="fill:none; fill-opacity:0.46; stroke:#000000; stroke-width:0.1;", gcodetools_tag = "Engraving calculation paths")
 
 
@@ -7109,6 +7196,29 @@ G01 Z1 (going to cutting z)\n""",
 	def help(self):
 		self.error(_("""Tutorials, manuals and support can be found at\nEnglish support forum:\n	http://www.cnc-club.ru/gcodetools\nand Russian support forum:\n	http://www.cnc-club.ru/gcodetoolsru"""),"warning")
 		return
+
+ ################################################################################
+    # TODO Launch browser on help tab
+    ################################################################################
+	def tab_help(self):
+		self.error("Switch to another tab to run the extensions.\n"
+					"No changes are made if the preferences or help tabs are active.\n\n"
+					"Tutorials, manuals and support can be found at\n"
+					" English support forum:\n"
+					"    http://www.cnc-club.ru/gcodetools\n"
+					"and Russian support forum:\n"
+					"    http://www.cnc-club.ru/gcodetoolsru")
+		return
+
+	def tab_about(self):
+		return self.tab_help()
+
+	def tab_preferences(self):
+		return self.tab_help()
+
+	def tab_options(self):
+		return self.tab_help()
+
 
 
 ################################################################################
@@ -7469,7 +7579,7 @@ G01 Z1 (going to cutting z)\n""",
 			time_ = l/feed
 			c1,c2 = self.graffiti_reference_points[layer][0][0],self.graffiti_reference_points[layer][1][0]
 			d = sqrt( (c1[0]-c2[0])**2 + (c1[1]-c2[1])**2 )
-			if d == 0 : raise ValueError, "Error! Reference points should not be the same!"
+			if d == 0 : raise ValueError("Error! Reference points should not be the same!")
 			for i in range(int(time_*emmit+1)) :
 				t = i/(time_*emmit)
 				r1,r2 = start[0]*(1-t) + end[0]*t, start[1]*(1-t) + end[1]*t
